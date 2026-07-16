@@ -258,7 +258,7 @@ setup.rows = [Array 240] (Truncated; returned 25; nextOffset 25)
 ### 5. DOM locators for a component by name (e.g. `UserCard`)
 
 ```js
-// Resolve UserCard by name, then table its DOM roots
+// Resolve UserCard by name, then log its selectors
 await window.VUE_PROBE
   .getComponentTree({ format: "flat" })
   .then((t) =>
@@ -269,7 +269,7 @@ await window.VUE_PROBE
   )
   .then((d) => {
     if (!d.ok) throw new Error(d.error.message);
-    console.log(window.VUE_PROBE.formatters.domToTable(d.data.roots));
+    console.log(d.data.roots.map((r) => r.selector));
   });
 ```
 
@@ -294,14 +294,12 @@ const dom = await $probe.getComponentDOM(card.id, {
   expectedRevision: tree.meta.revision, // fail fast if tree went stale
 });
 if (!dom.ok) throw new Error(dom.error.message);
-console.log($probe.formatters.domToTable(dom.data.roots));
+console.log(dom.data.roots.map((r) => r.selector));
 ```
 
 ```text
 // → console output
-| Selector | Tag | Rect (x,y,w,h) | Text Preview |
-| --- | --- | --- | --- |
-| `article.user-card` | `article` | 16,120,320,72 | Ada Lovelace |
+["article.user-card"]
 ```
 
 </details>
@@ -442,6 +440,8 @@ console.log($probe.formatters.toMarkdown(pinia.data.state));
 
 </details>
 
+### DOM locator notes
+
 `getComponentDOM()` returns a selector relative to the node's root. For an
 open Shadow DOM it also returns `shadowHostSelectors` in outer-to-inner order:
 resolve each host, enter its `shadowRoot`, then resolve `selector`. Closed
@@ -451,6 +451,8 @@ shadow roots intentionally return `selector: null`.
 > a whole-page DOM query: choose the specific rendered component you need. If a
 > component exposes a large Fragment or `v-for` root, the call returns
 > `INTERNAL_ERROR` with the 200-root limit; select a more specific child instead.
+
+### Result envelope
 
 Every call returns a JSON-safe envelope:
 

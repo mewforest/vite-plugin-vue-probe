@@ -258,7 +258,7 @@ setup.rows = [Array 240] (Truncated; returned 25; nextOffset 25)
 ### 5. DOM-локаторы компонента по имени (например, `UserCard`)
 
 ```js
-// Найти UserCard по имени и вывести DOM roots
+// Найти UserCard по имени и вывести его selectors
 await window.VUE_PROBE
   .getComponentTree({ format: "flat" })
   .then((t) =>
@@ -269,7 +269,7 @@ await window.VUE_PROBE
   )
   .then((d) => {
     if (!d.ok) throw new Error(d.error.message);
-    console.log(window.VUE_PROBE.formatters.domToTable(d.data.roots));
+    console.log(d.data.roots.map((r) => r.selector));
   });
 ```
 
@@ -294,14 +294,12 @@ const dom = await $probe.getComponentDOM(card.id, {
   expectedRevision: tree.meta.revision, // быстро упасть, если дерево устарело
 });
 if (!dom.ok) throw new Error(dom.error.message);
-console.log($probe.formatters.domToTable(dom.data.roots));
+console.log(dom.data.roots.map((r) => r.selector));
 ```
 
 ```text
 // → вывод в консоль
-| Selector | Tag | Rect (x,y,w,h) | Text Preview |
-| --- | --- | --- | --- |
-| `article.user-card` | `article` | 16,120,320,72 | Ada Lovelace |
+["article.user-card"]
 ```
 
 </details>
@@ -442,6 +440,8 @@ console.log($probe.formatters.toMarkdown(pinia.data.state));
 
 </details>
 
+### Заметки про DOM-локаторы
+
 `getComponentDOM()` возвращает selector относительно root узла. Для открытого
 Shadow DOM поле `shadowHostSelectors` задаёт цепочку снаружи внутрь: найти host,
 перейти в его `shadowRoot`, затем применить итоговый `selector`. Для закрытого
@@ -452,6 +452,8 @@ shadow root намеренно возвращается `selector: null`.
 > компонент. Если компонент публикует большой Fragment или корень с `v-for`, метод
 > вернёт `INTERNAL_ERROR` с сообщением о лимите 200; выберите более узкий дочерний
 > компонент.
+
+### Result envelope
 
 Каждый вызов возвращает JSON-safe envelope:
 
