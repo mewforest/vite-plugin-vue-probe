@@ -308,6 +308,38 @@ console.log($probe.formatters.domToTable(dom.data.roots));
 
 ### 6. Read the next page of a large state value
 
+```js
+// Page UserList.setup.rows, then follow nextOffset if truncated
+await window.VUE_PROBE
+  .getComponentTree({ format: "flat" })
+  .then((t) =>
+    window.VUE_PROBE.getDetailedState(
+      {
+        kind: "component",
+        componentId: t.data?.nodes.find((n) => n.name === "UserList")?.id,
+        appId: t.data?.appId,
+      },
+      ["setup", "rows"],
+      { offset: 0, limit: 50, expectedRevision: t.meta?.revision },
+    ),
+  )
+  .then((p) => {
+    if (!p.ok) throw new Error(p.error.message);
+    console.dir(p.data);
+    if (p.data.page?.nextOffset == null) return;
+    return window.VUE_PROBE
+      .getDetailedState(p.data.target, p.data.path, {
+        offset: p.data.page.nextOffset,
+        limit: p.data.page.limit,
+        expectedRevision: p.meta.revision,
+      })
+      .then((n) => {
+        if (!n.ok) throw new Error(n.error.message);
+        console.dir(n.data);
+      });
+  });
+```
+
 <details>
 <summary>Explained example</summary>
 
