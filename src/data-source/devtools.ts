@@ -2,6 +2,7 @@ import {
   DevToolsContextHookKeys,
   devtools,
   getActiveInspectors,
+  toggleHighPerfMode,
 } from "@vue/devtools-kit";
 import type {
   AppSummary,
@@ -712,7 +713,10 @@ export function createKitBridge(): DevtoolsBridge {
     devtools.ctx.state.appRecords.find((record) => record.app === app)?.id;
 
   const bridge = {
-    init: () => devtools.init(),
+    init: () => {
+      devtools.init();
+      toggleHighPerfMode(false);
+    },
     getApps: () => devtools.ctx.state.appRecords,
     getActiveAppId: () => devtools.ctx.state.activeAppRecordId || undefined,
     toggleApp: (appId: string) => devtools.api.toggleApp(appId),

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { devtools } from "@vue/devtools-kit";
+import {
+  devtools,
+  devtoolsState,
+  toggleHighPerfMode,
+} from "@vue/devtools-kit";
 import {
   createKitBridge,
   DevtoolsDataSource,
@@ -87,6 +91,19 @@ function bridgeFixture() {
 }
 
 describe("DevtoolsDataSource", () => {
+  it("disables devtools high-performance mode during kit bridge initialization", () => {
+    const initialHighPerfMode = devtoolsState.highPerfModeEnabled;
+    toggleHighPerfMode(true);
+
+    try {
+      createKitBridge().init();
+
+      expect(devtoolsState.highPerfModeEnabled).toBe(false);
+    } finally {
+      toggleHighPerfMode(initialHighPerfMode);
+    }
+  });
+
   it("initializes once, disposes subscriptions, and can initialize again", () => {
     const fixture = bridgeFixture();
     const source = new DevtoolsDataSource(fixture.bridge);
