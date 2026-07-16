@@ -2,7 +2,7 @@ import type {
   ComponentStateMetadata,
   StateEntryMetadata,
   StoreReferenceProbeValue,
-} from "../public-types";
+} from "../public-types.js";
 import type {
   InspectorComponentPayload,
   InspectorPiniaPayload,
@@ -10,7 +10,7 @@ import type {
   RawComponentState,
   RawPiniaState,
   RawStateMap,
-} from "../data-source/types";
+} from "../data-source/types.js";
 
 const SECTION_ALIASES: Record<string, keyof RawComponentState["state"]> = {
   props: "props",
@@ -31,25 +31,53 @@ function ownMap(): RawStateMap {
   return Object.create(null) as RawStateMap;
 }
 
+interface CustomRecordResult {
+  record?: Record<string, unknown>;
+  error?: Error;
+}
+
+function readCustomRecord(value: unknown): CustomRecordResult {
+  if (typeof value !== "object" || value === null) return {};
+  try {
+    if (!Object.hasOwn(value, "_custom")) return {};
+    const custom = Reflect.get(value, "_custom");
+    return typeof custom === "object" && custom !== null
+      ? { record: custom as Record<string, unknown> }
+      : {};
+  } catch {
+    return { error: new Error("Unable to inspect custom value") };
+  }
+}
+
 function unwrapCustom(value: unknown): unknown {
-  if (typeof value !== "object" || value === null || !("_custom" in value))
-    return value;
-  const custom = Reflect.get(value, "_custom") as Record<string, unknown>;
-  return "value" in custom ? custom.value : value;
+  const custom = readCustomRecord(value);
+  if (custom.error) return custom.error;
+  if (!custom.record) return value;
+  try {
+    return Object.hasOwn(custom.record, "value")
+      ? Reflect.get(custom.record, "value")
+      : value;
+  } catch {
+    return new Error("Unable to inspect custom value");
+  }
 }
 
 function storeReference(
   value: unknown,
   appId: string,
 ): StoreReferenceProbeValue | undefined {
-  if (typeof value !== "object" || value === null || !("_custom" in value))
+  const custom = readCustomRecord(value).record;
+  if (!custom) return undefined;
+  try {
+    if (Reflect.get(custom, "type") !== "store") return undefined;
+    const id = Reflect.get(custom, "id");
+    const storeId = id ?? Reflect.get(custom, "value");
+    return typeof storeId === "string"
+      ? { $type: "store-reference", storeId, appId }
+      : undefined;
+  } catch {
     return undefined;
-  const custom = Reflect.get(value, "_custom") as Record<string, unknown>;
-  if (custom.type !== "store") return undefined;
-  const storeId = custom.id ?? custom.value;
-  return typeof storeId === "string"
-    ? { $type: "store-reference", storeId, appId }
-    : undefined;
+  }
 }
 
 function entryMetadata(

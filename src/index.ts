@@ -20,7 +20,7 @@ export default function vueProbe(options: VueProbePluginOptions = {}): Plugin {
     },
     load(id) {
       if (enabled && id === RESOLVED_VIRTUAL_CLIENT_ID)
-        return `import { installProbeAPI } from 'vite-plugin-vue-probe/client';\ninstallProbeAPI();`;
+        return `import { installProbeAPI, uninstallProbeAPI } from 'vite-plugin-vue-probe/client';\nconst api = installProbeAPI();\nif (import.meta.hot && api) import.meta.hot.dispose(() => uninstallProbeAPI(api));`;
     },
     transformIndexHtml: {
       order: "pre",
@@ -39,4 +39,4 @@ export default function vueProbe(options: VueProbePluginOptions = {}): Plugin {
   };
 }
 
-export type * from "./public-types";
+export type * from "./public-types.js";

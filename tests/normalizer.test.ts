@@ -54,4 +54,47 @@ describe("inspector normalizers", () => {
       state: { rows: [1, 2] },
     });
   });
+
+  it("treats malformed _custom wrappers as ordinary values", () => {
+    const nullCustom = { _custom: null };
+    const primitiveCustom = { _custom: "invalid" };
+
+    const result = normalizeComponentState(
+      {
+        id: "app:1",
+        name: "Example",
+        state: [
+          { key: "nullCustom", value: nullCustom },
+          { key: "primitiveCustom", value: primitiveCustom },
+        ],
+      },
+      "app",
+    );
+
+    expect(result.state.setup).toEqual({ nullCustom, primitiveCustom });
+  });
+
+  it("converts a throwing _custom accessor into a local error value", () => {
+    const hostile = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(hostile, "_custom", {
+      enumerable: true,
+      get() {
+        throw new Error("hostile accessor");
+      },
+    });
+
+    const result = normalizeComponentState(
+      {
+        id: "app:1",
+        name: "Example",
+        state: [{ key: "hostile", value: hostile }],
+      },
+      "app",
+    );
+
+    expect(result.state.setup?.hostile).toBeInstanceOf(Error);
+    expect((result.state.setup?.hostile as Error).message).toContain(
+      "custom value",
+    );
+  });
 });

@@ -30,6 +30,8 @@ describe("vite-plugin-vue-probe", () => {
     const load = plugin.load as (id: string) => unknown;
     expect(resolveId(VIRTUAL_CLIENT_ID)).toBe(RESOLVED_VIRTUAL_CLIENT_ID);
     expect(load(RESOLVED_VIRTUAL_CLIENT_ID)).toContain("installProbeAPI();");
+    expect(load(RESOLVED_VIRTUAL_CLIENT_ID)).toContain("import.meta.hot.dispose");
+    expect(load(RESOLVED_VIRTUAL_CLIENT_ID)).toContain("uninstallProbeAPI(api)");
     expect(resolveId("unrelated")).toBeUndefined();
   });
 

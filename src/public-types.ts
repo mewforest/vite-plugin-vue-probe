@@ -14,7 +14,6 @@ export type ProbeErrorCode =
 export interface ProbeError {
   code: ProbeErrorCode;
   message: string;
-  details?: Record<string, JsonPrimitive | StatePath>;
 }
 
 export interface ResponseMeta {
@@ -47,6 +46,8 @@ export interface NonFiniteNumberProbeValue {
 export interface BigIntProbeValue {
   $type: "bigint";
   value: string;
+  truncated?: true;
+  totalDigits?: number;
 }
 export interface DateProbeValue {
   $type: "date";
@@ -56,11 +57,15 @@ export interface MapProbeValue {
   $type: "map";
   size: number;
   entries: Array<[ProbeValue, ProbeValue]>;
+  returned: number;
+  nextOffset: number | null;
 }
 export interface SetProbeValue {
   $type: "set";
   size: number;
   values: ProbeValue[];
+  returned: number;
+  nextOffset: number | null;
 }
 export interface ErrorProbeValue {
   $type: "error";
@@ -87,6 +92,7 @@ export interface TruncatedProbeValue {
   returned: number;
   preview: ProbeValue;
   nextOffset: number | null;
+  reason?: "node-budget" | "string-budget" | "key-length";
 }
 
 export type ProbeSpecialValue =
@@ -120,12 +126,21 @@ export interface ProbeCapabilities {
   stateMutation: false;
   eventTimeline: false;
   defaults: {
-    maxDepth: 2;
-    maxEntries: 25;
-    maxStringLength: 500;
-    detailMaxDepth: 3;
-    detailPageSize: 50;
-    hardMaxEntries: 200;
+    maxDepth: number;
+    maxEntries: number;
+    maxStringLength: number;
+    detailMaxDepth: number;
+    detailPageSize: number;
+    hardMaxEntries: number;
+    hardMaxDepth: number;
+    hardMaxStringLength: number;
+    hardMaxTotalStringLength: number;
+    hardMaxNodes: number;
+    hardMaxOffset: number;
+    hardMaxPathSegments: number;
+    hardMaxPathSegmentLength: number;
+    hardMaxPathTotalLength: number;
+    hardMaxIdentifierLength: number;
   };
 }
 
@@ -191,8 +206,13 @@ export type ComponentStateSection =
   | "refs"
   | "pinia";
 
+export type SerializedStateMap =
+  | Record<string, ProbeValue>
+  | TruncatedProbeValue
+  | ErrorProbeValue;
+
 export type ComponentStateSections = Partial<
-  Record<ComponentStateSection, Record<string, ProbeValue>>
+  Record<ComponentStateSection, SerializedStateMap>
 >;
 
 export interface StateEntryMetadata {
@@ -219,6 +239,10 @@ export type StateTarget =
   | { kind: "component"; componentId: string; appId?: string }
   | { kind: "pinia"; storeId: string; appId?: string };
 
+export type ResolvedStateTarget =
+  | { kind: "component"; componentId: string; appId: string }
+  | { kind: "pinia"; storeId: string; appId: string };
+
 export interface DetailedStateOptions extends SerializationBudget {
   offset?: number;
   limit?: number;
@@ -234,7 +258,7 @@ export interface StatePage {
 }
 
 export interface DetailedStateResult {
-  target: StateTarget;
+  target: ResolvedStateTarget;
   path: StatePath;
   value: ProbeValue;
   page?: StatePage;
@@ -243,22 +267,22 @@ export interface DetailedStateResult {
 export interface PiniaStoresOptions {
   appId?: string;
   filter?: string;
+  includeKeys?: boolean;
 }
 
 export interface PiniaStoreSummary {
   appId: string;
   id: string;
-  stateKeys: string[];
-  getterKeys: string[];
-  usedByComponentIds?: string[];
+  stateKeys?: string[];
+  getterKeys?: string[];
 }
 
 export interface PiniaStateResult {
   appId: string;
   storeId: string;
-  state: Record<string, ProbeValue>;
-  getters?: Record<string, ProbeValue>;
-  customProperties?: Record<string, ProbeValue>;
+  state: SerializedStateMap;
+  getters?: SerializedStateMap;
+  customProperties?: SerializedStateMap;
 }
 
 export interface DOMRectJSON {
@@ -275,6 +299,7 @@ export interface DOMRectJSON {
 export interface DOMNodeLocator {
   index: number;
   selector: string | null;
+  shadowHostSelectors?: string[];
   tag: string;
   id?: string;
   classes?: string[];
@@ -287,6 +312,11 @@ export interface ComponentDOMResult {
   appId: string;
   componentId: string;
   roots: DOMNodeLocator[];
+}
+
+export interface ComponentDOMOptions {
+  appId?: string;
+  expectedRevision?: number;
 }
 
 export interface ProbeAPI {
@@ -314,6 +344,7 @@ export interface ProbeAPI {
   ): Promise<ProbeResult<PiniaStateResult>>;
   getComponentDOM(
     componentId: string,
+    options?: ComponentDOMOptions,
   ): Promise<ProbeResult<ComponentDOMResult>>;
 }
 

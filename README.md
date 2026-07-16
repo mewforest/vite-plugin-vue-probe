@@ -8,6 +8,8 @@ Built on Vue DevTools v8 (`@vue/devtools-kit`). Provides the component tree, com
 
 > **Status:** proof of concept. The API never ships in production builds, never mutates state, and never invokes actions.
 
+The current public contract is **API 0.2.0**.
+
 ---
 
 ## Features
@@ -63,40 +65,70 @@ vueProbe({ enabled: false });
 With `vite serve` running and the plugin enabled, open the page → DevTools → **Console**:
 
 ```js
-// Is the probe installed?
-window.VUE_PROBE?.version;
+const probe = window.VUE_PROBE;
+if (!probe) throw new Error("VUE_PROBE is not installed");
 
-// Capabilities + apps
-await window.VUE_PROBE.getCapabilities();
-await window.VUE_PROBE.listApps();
+const capabilities = await probe.getCapabilities();
+if (!capabilities.ok) throw new Error(capabilities.error.message);
+const apps = await probe.listApps();
+if (!apps.ok) throw new Error(apps.error.message);
 
 // Flat component tree (first 3 levels)
-const tree = await window.VUE_PROBE.getComponentTree({
+const tree = await probe.getComponentTree({
   format: "flat",
   maxDepth: 3,
 });
-console.table(
-  tree.ok
-    ? tree.data.nodes.map((n) => ({ id: n.id, name: n.name, depth: n.depth }))
-    : tree.error,
-);
+if (!tree.ok) throw new Error(tree.error.message);
+console.table(tree.data.nodes.map((n) => ({
+  id: n.id,
+  name: n.name,
+  depth: n.depth,
+})));
 
-// Pick a real id from the tree, then inspect state / DOM
+// Pick a real id from the tree, then inspect state / DOM in the same app
 const id = tree.data.nodes.find((n) => n.name.includes("App"))?.id;
-await window.VUE_PROBE.getComponentState(id);
-await window.VUE_PROBE.getComponentDOM(id);
+if (!id) throw new Error("Component not found in the returned tree");
+const state = await probe.getComponentState(id, { appId: tree.data.appId });
+if (!state.ok) throw new Error(state.error.message);
+const dom = await probe.getComponentDOM(id, {
+  appId: tree.data.appId,
+  expectedRevision: tree.meta.revision,
+});
+if (!dom.ok) throw new Error(dom.error.message);
 
 // Page a large / truncated path
-await window.VUE_PROBE.getDetailedState(
-  { kind: "component", componentId: id },
+const page = await probe.getDetailedState(
+  { kind: "component", componentId: id, appId: tree.data.appId },
   ["setup", "rows"],
-  { offset: 0, limit: 50 },
+  { offset: 0, limit: 50, expectedRevision: tree.meta.revision },
 );
+if (!page.ok) throw new Error(page.error.message);
+const pagination = page.data.page;
+if (pagination?.nextOffset != null) {
+  const next = await probe.getDetailedState(page.data.target, page.data.path, {
+    offset: pagination.nextOffset,
+    limit: pagination.limit,
+    expectedRevision: page.meta.revision,
+  });
+  if (!next.ok) throw new Error(next.error.message);
+}
 
-// Pinia (when registered)
-await window.VUE_PROBE.getPiniaStores();
-await window.VUE_PROBE.getPiniaState("users");
+// Pinia (when registered): IDs only by default; keys are opt-in
+const stores = await probe.getPiniaStores({ appId: tree.data.appId });
+if (!stores.ok) throw new Error(stores.error.message);
+const storesWithKeys = await probe.getPiniaStores({
+  appId: tree.data.appId,
+  includeKeys: true,
+});
+if (!storesWithKeys.ok) throw new Error(storesWithKeys.error.message);
+const pinia = await probe.getPiniaState("users", { appId: tree.data.appId });
+if (!pinia.ok) throw new Error(pinia.error.message);
 ```
+
+`getComponentDOM()` returns a selector relative to the node's root. For an
+open Shadow DOM it also returns `shadowHostSelectors` in outer-to-inner order:
+resolve each host, enter its `shadowRoot`, then resolve `selector`. Closed
+shadow roots intentionally return `selector: null`.
 
 Every call returns a JSON-safe envelope:
 
@@ -115,6 +147,13 @@ type ProbeResult<T> =
 ```
 
 If `window.VUE_PROBE` is `undefined`, the plugin is not injected (production build, `enabled: false`, or not in `vite.config`).
+
+### Budgets and revisions
+
+- Initial reads default to depth `2`, `25` entries, and `500` string characters; detailed reads default to depth `3` and page size `50`.
+- For serialized component/Pinia/detail state data, hard limits are depth `20`, `200` entries per container/page, `100,000` characters per string, `1,000,000` aggregate emitted string characters, and `5,000` serialized nodes. This aggregate limit does not describe envelopes, app lists, or component trees. Identifier/path length and offset limits are reported by `getCapabilities()`.
+- `revision` is an inspector-invalidation token, not a mutation counter. Component lifecycle/update events and Pinia inspector-state invalidation advance it; an unattributed invalidation conservatively advances every live app.
+- Snapshot reads check revision before and after the read. A mismatched `expectedRevision`, or an update during the read, returns `STALE_REVISION`; retry from a fresh response revision.
 
 ---
 
@@ -147,8 +186,12 @@ After install, agents can use it when debugging Vue runtime state, writing Playw
 
 - Vue 3 + Vite dev server only — no production API surface
 - Pinia works when the app registers its custom inspector
+- Fragment/Suspense/Teleport/KeepAlive root extraction is structural and bounded; it depends on the Vue DevTools VNode shapes available at runtime
+- Runtime tests pin `vue@3.5.22` and `pinia@3.0.3`: they mount Fragment, Suspense, Teleport, KeepAlive, two apps, and option/setup stores. The real DevTools browser hook remains the consumer-application integration boundary
 - Event timeline, subscriptions, state mutation, and action calls are out of scope for v1
 - Intended for trusted local development — runtime state may contain secrets
+
+The dev client owns its DevTools subscriptions and releases them on HMR dispose/uninstall. Package entrypoints are emitted as Node-compatible ESM and covered by a dist import smoke test.
 
 ---
 
@@ -168,6 +211,8 @@ Vue DevTools types never leak into the public contract. If this lands in `vuejs/
 npm test
 npm run typecheck
 npm run build
+npm run test:dist
+npm run test:types-dist
 ```
 
 ---

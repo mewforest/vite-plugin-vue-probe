@@ -1,0 +1,84 @@
+import vueProbe, {
+  type ComponentDOMOptions,
+  type DOMNodeLocator,
+  type PiniaStoreSummary,
+  type ProbeAPI,
+  type ProbeError,
+  type DetailedStateResult,
+} from "vite-plugin-vue-probe";
+import {
+  installProbeAPI,
+  uninstallProbeAPI,
+} from "vite-plugin-vue-probe/client";
+
+const plugin = vueProbe({ enabled: true });
+void plugin;
+
+declare const api: ProbeAPI;
+declare const options: ComponentDOMOptions;
+declare const detailResult: DetailedStateResult;
+
+void api.getComponentDOM("component-1", {
+  appId: "app-1",
+  expectedRevision: 4,
+});
+void api.getComponentDOM("component-1", options);
+void api.getPiniaStores({ appId: "app-1", includeKeys: true });
+const resolvedAppId: string = detailResult.target.appId;
+void resolvedAppId;
+
+const storeWithoutKeys: PiniaStoreSummary = {
+  appId: "app-1",
+  id: "users",
+};
+const storeWithKeys: PiniaStoreSummary = {
+  ...storeWithoutKeys,
+  stateKeys: ["users"],
+  getterKeys: ["count"],
+};
+void storeWithKeys;
+
+const locator: DOMNodeLocator = {
+  index: 0,
+  selector: "[data-testid=save]",
+  shadowHostSelectors: ["#shell", "#dialog"],
+  tag: "button",
+  rect: {
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 10,
+    top: 0,
+    right: 10,
+    bottom: 10,
+    left: 0,
+  },
+  connected: true,
+};
+void locator;
+
+const installed = installProbeAPI();
+if (installed) uninstallProbeAPI(installed);
+
+// @ts-expect-error Component DOM revisions must be safe integers at runtime,
+// and the declaration must at least reject non-number values.
+void api.getComponentDOM("component-1", { expectedRevision: "4" });
+
+// @ts-expect-error Pinia key enrichment is controlled by a boolean.
+void api.getPiniaStores({ includeKeys: "yes" });
+
+const errorWithDetails: ProbeError = {
+  code: "INTERNAL_ERROR",
+  message: "failed",
+  // @ts-expect-error Probe errors intentionally expose only code and message.
+  details: { operation: "read" },
+};
+void errorWithDetails;
+
+const storeWithConsumers: PiniaStoreSummary = {
+  appId: "app-1",
+  id: "users",
+  // @ts-expect-error Store usage inference is not part of the public contract.
+  usedByComponentIds: ["component-1"],
+};
+void storeWithConsumers;

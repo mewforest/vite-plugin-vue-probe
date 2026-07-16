@@ -27,6 +27,8 @@
     "prepare": "npm run build",
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
+    "test:dist": "npm run build && node tests/node-esm-smoke.mjs",
+    "test:types-dist": "npm run build && tsc -p tests/types-dist/tsconfig.json",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
@@ -36,9 +38,11 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "jsdom": "^27.0.0",
+    "pinia": "3.0.3",
     "typescript": "5.9.2",
     "vite": "^8.1.4",
-    "vitest": "4.1.6"
+    "vitest": "4.1.6",
+    "vue": "3.5.22"
   },
   "peerDependencies": {
     "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"

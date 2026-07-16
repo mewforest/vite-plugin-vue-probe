@@ -4,7 +4,7 @@ import type {
   ComponentStateMetadata,
   ComponentTreeNode,
   PiniaStoreSummary,
-} from "../public-types";
+} from "../public-types.js";
 
 export interface InspectorStateEntry {
   type?: string;
@@ -66,6 +66,9 @@ export interface RawComponentTreeResult {
 
 export interface ProbeDataSource {
   init(): void;
+  dispose?(): void;
+  hasApp(appId: string): boolean;
+  hasPiniaInspector(appId: string): Promise<boolean>;
   listApps(): AppSummary[];
   getActiveAppId(): string | undefined;
   getRevision(appId?: string): number;
@@ -78,7 +81,11 @@ export interface ProbeDataSource {
     appId: string,
     componentId: string,
   ): Promise<RawComponentState>;
-  getPiniaStores(appId: string, filter?: string): Promise<PiniaStoreSummary[]>;
+  getPiniaStores(
+    appId: string,
+    filter?: string,
+    includeKeys?: boolean,
+  ): Promise<PiniaStoreSummary[]>;
   getPiniaState(appId: string, storeId: string): Promise<RawPiniaState>;
   getComponentRoots(appId: string, componentId: string): Element[];
 }
