@@ -166,18 +166,13 @@ console.table(apps.data);
 ### 3. Component tree (flat, up to depth 5)
 
 ```js
-// Flat tree: id / name / depth
+// Compact Markdown tree, ready for an agent or issue comment
 await window.VUE_PROBE
   .getComponentTree({ format: "flat", maxDepth: 5 })
-  .then((r) =>
-    console.table(
-      r.data?.nodes.map((n) => ({
-        id: n.id,
-        name: n.name,
-        depth: n.depth,
-      })),
-    ),
-  );
+  .then((r) => {
+    if (!r.ok) throw new Error(r.error.message);
+    console.log(window.VUE_PROBE.formatters.toMarkdown(r.data));
+  });
 ```
 
 <details>
@@ -195,19 +190,15 @@ const tree = await $probe.getComponentTree({
   maxDepth: 3,
 });
 if (!tree.ok) throw new Error(tree.error.message);
-console.table(
-  tree.data.nodes.map((n) => ({ id: n.id, name: n.name, depth: n.depth })),
-);
+console.log($probe.formatters.toMarkdown(tree.data));
+// Optional diagram: console.log($probe.formatters.treeToMermaid(tree.data));
 ```
 
-```js
-// → tree.data.nodes (abbrev.)
-[
-  { id: "app:1", name: "App",      depth: 0 },
-  { id: "app:2", name: "UserList", depth: 1 },
-  { id: "app:3", name: "UserCard", depth: 2 },
-  /* … */
-]
+```text
+// → console output
+- App (app:1)
+  - UserList (app:2)
+    - UserCard (app:3)
 ```
 
 </details>
@@ -224,7 +215,10 @@ await window.VUE_PROBE
       { appId: t.data?.appId },
     ),
   )
-  .then((s) => console.dir(s.data?.state));
+  .then((s) => {
+    if (!s.ok) throw new Error(s.error.message);
+    console.log(window.VUE_PROBE.formatters.toMarkdown(s.data.state));
+  });
 ```
 
 <details>
@@ -245,26 +239,18 @@ if (!id) throw new Error("UserList not in tree");
 
 const state = await $probe.getComponentState(id, { appId: tree.data.appId });
 if (!state.ok) throw new Error(state.error.message);
-console.log(state.data);
+console.log($probe.formatters.toMarkdown(state.data.state));
+// If a value is truncated, inspect exact printable paths before paging it.
+console.log($probe.formatters.stateToPaths(state.data.state));
 ```
 
-```js
-// → state.data (abbrev.)
-{
-  name: "UserList",
-  state: {
-    setup: {
-      rows: {
-        $type: "truncated",
-        kind: "array",
-        total: 240,
-        returned: 25,
-        nextOffset: 25,
-        /* … */
-      },
-    },
-  },
-}
+```text
+// → toMarkdown(state.data.state)
+- setup:
+  - rows: [Array 240] (Truncated)
+
+// → stateToPaths(state.data.state)
+setup.rows = [Array 240] (Truncated; returned 25; nextOffset 25)
 ```
 
 </details>
@@ -281,7 +267,10 @@ await window.VUE_PROBE
       { appId: t.data?.appId },
     ),
   )
-  .then((d) => console.table(d.data?.roots));
+  .then((d) => {
+    if (!d.ok) throw new Error(d.error.message);
+    console.log(window.VUE_PROBE.formatters.domToTable(d.data.roots));
+  });
 ```
 
 <details>
@@ -305,20 +294,14 @@ const dom = await $probe.getComponentDOM(card.id, {
   expectedRevision: tree.meta.revision, // fail fast if tree went stale
 });
 if (!dom.ok) throw new Error(dom.error.message);
-console.log(dom.data.roots);
+console.log($probe.formatters.domToTable(dom.data.roots));
 ```
 
-```js
-// → dom.data.roots (abbrev.)
-[
-  {
-    index: 0,
-    tag: "article",
-    selector: "article.user-card",
-    rect: { x: 16, y: 120, width: 320, height: 72, /* … */ },
-    connected: true,
-  },
-]
+```text
+// → console output
+| Selector | Tag | Rect (x,y,w,h) | Text Preview |
+| --- | --- | --- | --- |
+| `article.user-card` | `article` | 16,120,320,72 | Ada Lovelace |
 ```
 
 </details>
@@ -381,7 +364,10 @@ await window.VUE_PROBE
       appId: a.data.find((x) => x.active)?.id ?? a.data[0]?.id,
     }),
   )
-  .then((p) => console.dir(p.data?.state));
+  .then((p) => {
+    if (!p.ok) throw new Error(p.error.message);
+    console.log(window.VUE_PROBE.formatters.toMarkdown(p.data.state));
+  });
 ```
 
 <details>
@@ -410,14 +396,16 @@ if (!storesWithKeys.ok) throw new Error(storesWithKeys.error.message);
 
 const pinia = await $probe.getPiniaState("users", { appId });
 if (!pinia.ok) throw new Error(pinia.error.message);
-console.log(pinia.data);
+console.log($probe.formatters.toMarkdown(pinia.data.state));
 ```
 
-```js
-// → stores.data / pinia.data (abbrev.)
+```text
+// → stores.data (abbrev.)
 [{ appId: "app", id: "users" }]
 [{ appId: "app", id: "users", stateKeys: ["list"], getterKeys: [] }]
-{ storeId: "users", state: { list: [/* … */] } }
+
+// → toMarkdown(pinia.data.state)
+- list: [Array 240]
 ```
 
 </details>
