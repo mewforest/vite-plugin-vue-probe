@@ -1,22 +1,22 @@
-import type { AgentAPI } from './public-types'
-import type { AgentDataSource } from './data-source/types'
-import { DevtoolsDataSource } from './data-source/devtools'
-import { createAgentAPI } from './core/facade'
+import type { ProbeAPI } from "./public-types";
+import type { ProbeDataSource } from "./data-source/types";
+import { DevtoolsDataSource } from "./data-source/devtools";
+import { createProbeAPI } from "./core/facade";
 
-export function installAgentAPI(source: AgentDataSource = new DevtoolsDataSource()): AgentAPI | undefined {
-  if (typeof window === 'undefined')
-    return undefined
-  if (window.AGENT_API)
-    return window.AGENT_API
-  source.init()
-  const api = Object.freeze(createAgentAPI(source))
-  Object.defineProperty(window, 'AGENT_API', {
+export function installProbeAPI(
+  source: ProbeDataSource = new DevtoolsDataSource(),
+): ProbeAPI | undefined {
+  if (typeof window === "undefined") return undefined;
+  if (window.VUE_PROBE) return window.VUE_PROBE;
+  source.init();
+  const api = Object.freeze(createProbeAPI(source));
+  Object.defineProperty(window, "VUE_PROBE", {
     value: api,
     configurable: true,
     enumerable: false,
     writable: false,
-  })
-  return api
+  });
+  return api;
 }
 
-export type * from './public-types'
+export type * from "./public-types";

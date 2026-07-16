@@ -1,8 +1,8 @@
-# vite-plugin-vue-agent
+# vite-plugin-vue-probe
 
 [English](./README.md) · [Русский](./README_ru.md)
 
-Dev-only Vite plugin that exposes a read-only `window.AGENT_API` for precise Vue 3 inspection by agentic LLMs.
+Dev-only Vite plugin that exposes a read-only `window.VUE_PROBE` for precise Vue 3 runtime inspection — useful for AI agents, Playwright/Cypress scripts, custom tooling, and local debugging.
 
 Built on Vue DevTools v8 (`@vue/devtools-kit`). Provides the component tree, component state, Pinia stores, lazy path-based reads, and component → DOM locators.
 
@@ -12,70 +12,87 @@ Built on Vue DevTools v8 (`@vue/devtools-kit`). Provides the component tree, com
 
 ## Features
 
-| Capability | Description |
-| --- | --- |
-| Component tree | Nested or flat tree with depth limits and name filters |
-| Component state | Props, setup, data, computed, attrs, provide/inject, refs |
-| Pinia | Store list and budgeted store state when the inspector is registered |
-| Lazy paths | Page large values via `getDetailedState` without dumping the whole object |
-| DOM locators | JSON selectors / rects for a component’s root elements |
-| Safe envelope | Every call returns `AgentResult<T>` — success or structured error |
+| Capability      | Description                                                               |
+| --------------- | ------------------------------------------------------------------------- |
+| Component tree  | Nested or flat tree with depth limits and name filters                    |
+| Component state | Props, setup, data, computed, attrs, provide/inject, refs                 |
+| Pinia           | Store list and budgeted store state when the inspector is registered      |
+| Lazy paths      | Page large values via `getDetailedState` without dumping the whole object |
+| DOM locators    | JSON selectors / rects for a component’s root elements                    |
+| Safe envelope   | Every call returns `ProbeResult<T>` — success or structured error         |
 
 ---
 
 ## Install
 
+Not published to npm yet. Install from GitHub (builds via `prepare`):
+
 ```bash
-npm install -D vite-plugin-vue-agent
+npm install -D github:mewforest/vite-plugin-vue-probe
+```
+
+Or from a local clone of this repo:
+
+```bash
+npm install -D /absolute/path/to/vite-plugin-vue-probe
 ```
 
 ```ts
 // vite.config.ts
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import vueAgent from 'vite-plugin-vue-agent'
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+import vueProbe from "vite-plugin-vue-probe";
 
 export default defineConfig({
-  plugins: [vueAgent(), vue()],
-})
+  plugins: [vueProbe(), vue()],
+});
 ```
 
-The plugin uses `apply: 'serve'`, so `window.AGENT_API` exists only during `vite serve`.
+The plugin uses `apply: 'serve'`, so `window.VUE_PROBE` exists only during `vite serve`.
 
 Temporarily disable without removing the plugin:
 
 ```ts
-vueAgent({ enabled: false })
+vueProbe({ enabled: false });
 ```
 
 ---
 
-## Agent workflow
+## Typical workflow
 
 ```js
-const apps = await window.AGENT_API.listApps()
-const tree = await window.AGENT_API.getComponentTree({ format: 'flat', maxDepth: 3 })
-const state = await window.AGENT_API.getComponentState('app-id:42')
+const apps = await window.VUE_PROBE.listApps();
+const tree = await window.VUE_PROBE.getComponentTree({
+  format: "flat",
+  maxDepth: 3,
+});
+const state = await window.VUE_PROBE.getComponentState("app-id:42");
 
 // Oversized values come back as {$type: 'truncated', path, total, nextOffset, ...}
-const page = await window.AGENT_API.getDetailedState(
-  { kind: 'component', componentId: 'app-id:42' },
-  ['setup', 'rows'],
+const page = await window.VUE_PROBE.getDetailedState(
+  { kind: "component", componentId: "app-id:42" },
+  ["setup", "rows"],
   { offset: 0, limit: 50 },
-)
+);
 
-const dom = await window.AGENT_API.getComponentDOM('app-id:42')
+const dom = await window.VUE_PROBE.getComponentDOM("app-id:42");
 ```
 
 All methods are async and return a JSON-safe union:
 
 ```ts
-type AgentResult<T> =
-  | { ok: true; data: T; meta: { requestId: string; revision: number; observedAt: string } }
-  | { ok: false; error: { code: string; message: string }; meta: { requestId: string; revision: number; observedAt: string } }
+type ProbeResult<T> =
+  | {
+      ok: true;
+      data: T;
+      meta: { requestId: string; revision: number; observedAt: string };
+    }
+  | {
+      ok: false;
+      error: { code: string; message: string };
+      meta: { requestId: string; revision: number; observedAt: string };
+    };
 ```
-
-Full contract, limits, and upstream research: [`outputs/vite-plugin-vue-agent-api-spec.md`](outputs/vite-plugin-vue-agent-api-spec.md).
 
 ---
 
@@ -91,10 +108,10 @@ Full contract, limits, and upstream research: [`outputs/vite-plugin-vue-agent-ap
 ## Architecture
 
 ```text
-DevtoolsDataSource → normalizer → budgeted serializer → Agent API facade
+DevtoolsDataSource → normalizer → budgeted serializer → Probe API facade
 ```
 
-Vue DevTools types never leak into the public contract. If this lands in `vuejs/devtools` later, only the data source / registration layer needs to change; the serializer and LLM-friendly API stay the same.
+Vue DevTools types never leak into the public contract. If this lands in `vuejs/devtools` later, only the data source / registration layer needs to change; the serializer and consumer-friendly API stay the same.
 
 ---
 

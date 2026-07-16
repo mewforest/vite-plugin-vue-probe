@@ -4,3 +4,6 @@ node_modules/
 dist/
 coverage/
 work/
+/docs/superpowers/
+.idea
+.DS_Store

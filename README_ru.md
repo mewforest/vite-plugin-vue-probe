@@ -1,8 +1,8 @@
-# vite-plugin-vue-agent
+# vite-plugin-vue-probe
 
 [English](./README.md) · [Русский](./README_ru.md)
 
-Dev-only Vite-плагин, который публикует read-only `window.AGENT_API` для точной инспекции Vue 3 приложений агентскими LLM.
+Dev-only Vite-плагин, который публикует read-only `window.VUE_PROBE` для точной инспекции Vue 3 в runtime — для ИИ-агентов, Playwright/Cypress, кастомного tooling и локальной отладки.
 
 PoC опирается на Vue DevTools v8 (`@vue/devtools-kit`) и даёт дерево компонентов, component state, Pinia, ленивое path-based чтение и component → DOM locators.
 
@@ -12,70 +12,87 @@ PoC опирается на Vue DevTools v8 (`@vue/devtools-kit`) и даёт д
 
 ## Возможности
 
-| Возможность | Описание |
-| --- | --- |
-| Дерево компонентов | Nested или flat, с лимитом глубины и фильтром по имени |
-| Состояние компонента | Props, setup, data, computed, attrs, provide/inject, refs |
-| Pinia | Список store и budgeted state, если inspector зарегистрирован |
-| Ленивые paths | Дочитывание больших значений через `getDetailedState` без полного dump |
-| DOM-локаторы | JSON selectors / rects для корневых элементов компонента |
-| Безопасный ответ | Каждый вызов — `AgentResult<T>`: успех или структурированная ошибка |
+| Возможность          | Описание                                                               |
+| -------------------- | ---------------------------------------------------------------------- |
+| Дерево компонентов   | Nested или flat, с лимитом глубины и фильтром по имени                 |
+| Состояние компонента | Props, setup, data, computed, attrs, provide/inject, refs              |
+| Pinia                | Список store и budgeted state, если inspector зарегистрирован          |
+| Ленивые paths        | Дочитывание больших значений через `getDetailedState` без полного dump |
+| DOM-локаторы         | JSON selectors / rects для корневых элементов компонента               |
+| Безопасный ответ     | Каждый вызов — `ProbeResult<T>`: успех или структурированная ошибка    |
 
 ---
 
 ## Установка и подключение
 
+Пока пакет не опубликован в npm. Установка с GitHub (сборка через `prepare`):
+
 ```bash
-npm install -D vite-plugin-vue-agent
+npm install -D github:mewforest/vite-plugin-vue-probe
+```
+
+Или из локального клона этого репозитория:
+
+```bash
+npm install -D /absolute/path/to/vite-plugin-vue-probe
 ```
 
 ```ts
 // vite.config.ts
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import vueAgent from 'vite-plugin-vue-agent'
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+import vueProbe from "vite-plugin-vue-probe";
 
 export default defineConfig({
-  plugins: [vueAgent(), vue()],
-})
+  plugins: [vueProbe(), vue()],
+});
 ```
 
-Плагин использует `apply: 'serve'`: `window.AGENT_API` создаётся только при `vite serve`.
+Плагин использует `apply: 'serve'`: `window.VUE_PROBE` создаётся только при `vite serve`.
 
 Временно отключить без удаления из конфига:
 
 ```ts
-vueAgent({ enabled: false })
+vueProbe({ enabled: false });
 ```
 
 ---
 
-## Типичный сценарий для агента
+## Типичный сценарий
 
 ```js
-const apps = await window.AGENT_API.listApps()
-const tree = await window.AGENT_API.getComponentTree({ format: 'flat', maxDepth: 3 })
-const state = await window.AGENT_API.getComponentState('app-id:42')
+const apps = await window.VUE_PROBE.listApps();
+const tree = await window.VUE_PROBE.getComponentTree({
+  format: "flat",
+  maxDepth: 3,
+});
+const state = await window.VUE_PROBE.getComponentState("app-id:42");
 
 // Большие значения возвращаются как {$type: 'truncated', path, total, nextOffset, ...}
-const page = await window.AGENT_API.getDetailedState(
-  { kind: 'component', componentId: 'app-id:42' },
-  ['setup', 'rows'],
+const page = await window.VUE_PROBE.getDetailedState(
+  { kind: "component", componentId: "app-id:42" },
+  ["setup", "rows"],
   { offset: 0, limit: 50 },
-)
+);
 
-const dom = await window.AGENT_API.getComponentDOM('app-id:42')
+const dom = await window.VUE_PROBE.getComponentDOM("app-id:42");
 ```
 
 Все методы асинхронны и возвращают JSON-safe union:
 
 ```ts
-type AgentResult<T> =
-  | { ok: true; data: T; meta: { requestId: string; revision: number; observedAt: string } }
-  | { ok: false; error: { code: string; message: string }; meta: { requestId: string; revision: number; observedAt: string } }
+type ProbeResult<T> =
+  | {
+      ok: true;
+      data: T;
+      meta: { requestId: string; revision: number; observedAt: string };
+    }
+  | {
+      ok: false;
+      error: { code: string; message: string };
+      meta: { requestId: string; revision: number; observedAt: string };
+    };
 ```
-
-Полный контракт, ограничения и исследование upstream: [`outputs/vite-plugin-vue-agent-api-spec.md`](outputs/vite-plugin-vue-agent-api-spec.md).
 
 ---
 
@@ -91,10 +108,10 @@ type AgentResult<T> =
 ## Архитектура
 
 ```text
-DevtoolsDataSource → normalizer → budgeted serializer → Agent API facade
+DevtoolsDataSource → normalizer → budgeted serializer → Probe API facade
 ```
 
-Типы Vue DevTools не выходят в публичный контракт. При переносе в `vuejs/devtools` меняются data source / регистрация; serializer и LLM-friendly API сохраняются.
+Типы Vue DevTools не выходят в публичный контракт. При переносе в `vuejs/devtools` меняются data source / регистрация; serializer и consumer-friendly API сохраняются.
 
 ---
 

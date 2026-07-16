@@ -1,7 +1,7 @@
 {
-  "name": "vite-plugin-vue-agent",
+  "name": "vite-plugin-vue-probe",
   "version": "0.0.0",
-  "description": "Read-only Vue runtime inspection API for agentic LLMs",
+  "description": "Dev-only read-only Vue 3 runtime inspection API (agents, tests, tooling)",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -23,6 +23,7 @@
     "README.md"
   ],
   "scripts": {
+    "prepare": "npm run build",
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "test:watch": "vitest",
