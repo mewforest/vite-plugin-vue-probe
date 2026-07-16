@@ -94,7 +94,16 @@ const rows = ref([/* many items */])
 defineStore("users", () => ({ list: [] }))
 ```
 
+Below are the same commands as `.then()` chains: syntactically they are still single expressions you can copy and paste into the browser console as one block. Expanded variants with explicit `ok` checks are under spoilers.
+
 ### 1. Check that the API is available
+
+```js
+window.VUE_PROBE?.version; // "0.2.0"
+```
+
+<details>
+<summary>Expanded example</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -106,7 +115,18 @@ $probe.version; // "0.2.0"
 // → "0.2.0"
 ```
 
-### 2. Check capabilities and applications
+</details>
+
+### 2. List active applications
+
+```js
+await window.VUE_PROBE
+  .listApps()
+  .then((r) => console.table(r.data));
+```
+
+<details>
+<summary>Expanded example (capabilities + apps)</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -138,7 +158,26 @@ console.table(apps.data);
 [{ id: "app", name: "App", vueVersion: "3.5.x", active: true }]
 ```
 
-### 3. Print a shallow component tree
+</details>
+
+### 3. Component tree (flat, up to depth 5)
+
+```js
+await window.VUE_PROBE
+  .getComponentTree({ format: "flat", maxDepth: 5 })
+  .then((r) =>
+    console.table(
+      r.data?.nodes.map((n) => ({
+        id: n.id,
+        name: n.name,
+        depth: n.depth,
+      })),
+    ),
+  );
+```
+
+<details>
+<summary>Expanded example</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -164,7 +203,24 @@ console.table(
 ]
 ```
 
-### 4. Read component state
+</details>
+
+### 4. Component state by name (e.g. `UserList`)
+
+```js
+await window.VUE_PROBE
+  .getComponentTree({ format: "flat" })
+  .then((t) =>
+    window.VUE_PROBE.getComponentState(
+      t.data?.nodes.find((n) => n.name === "UserList")?.id,
+      { appId: t.data?.appId },
+    ),
+  )
+  .then((s) => console.dir(s.data?.state));
+```
+
+<details>
+<summary>Expanded example</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -200,7 +256,24 @@ console.log(state.data);
 }
 ```
 
-### 5. Get DOM locators for one rendered child
+</details>
+
+### 5. DOM locators for a component by name (e.g. `UserCard`)
+
+```js
+await window.VUE_PROBE
+  .getComponentTree({ format: "flat" })
+  .then((t) =>
+    window.VUE_PROBE.getComponentDOM(
+      t.data?.nodes.find((n) => n.name === "UserCard")?.id,
+      { appId: t.data?.appId },
+    ),
+  )
+  .then((d) => console.table(d.data?.roots));
+```
+
+<details>
+<summary>Expanded example</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -234,7 +307,12 @@ console.log(dom.data.roots);
 ]
 ```
 
+</details>
+
 ### 6. Read the next page of a large state value
+
+<details>
+<summary>Expanded example</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -273,7 +351,23 @@ if (page.data.page?.nextOffset != null) {
 }
 ```
 
-### 7. Inspect Pinia
+</details>
+
+### 7. Pinia store state by id (e.g. `users`)
+
+```js
+await window.VUE_PROBE
+  .listApps()
+  .then((a) =>
+    window.VUE_PROBE.getPiniaState("users", {
+      appId: a.data.find((x) => x.active)?.id ?? a.data[0]?.id,
+    }),
+  )
+  .then((p) => console.dir(p.data?.state));
+```
+
+<details>
+<summary>Expanded example (stores + state)</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -305,15 +399,17 @@ console.log(pinia.data);
 { storeId: "users", state: { list: [/* … */] } }
 ```
 
+</details>
+
 `getComponentDOM()` returns a selector relative to the node's root. For an
 open Shadow DOM it also returns `shadowHostSelectors` in outer-to-inner order:
 resolve each host, enter its `shadowRoot`, then resolve `selector`. Closed
 shadow roots intentionally return `selector: null`.
 
-`getComponentDOM()` is bounded to 200 DOM roots. Do not use the root `App` as
-a whole-page DOM query: choose the specific rendered component you need. If a
-component exposes a large Fragment or `v-for` root, the call returns
-`INTERNAL_ERROR` with the 200-root limit; select a more specific child instead.
+> `getComponentDOM()` is bounded to 200 DOM roots. Do not use the root `App` as
+> a whole-page DOM query: choose the specific rendered component you need. If a
+> component exposes a large Fragment or `v-for` root, the call returns
+> `INTERNAL_ERROR` with the 200-root limit; select a more specific child instead.
 
 Every call returns a JSON-safe envelope:
 

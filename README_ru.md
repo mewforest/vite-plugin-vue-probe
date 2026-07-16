@@ -94,7 +94,16 @@ const rows = ref([/* много элементов */])
 defineStore("users", () => ({ list: [] }))
 ```
 
+Ниже — те же команды в виде цепочек `.then()`: синтаксически это единые выражения, их можно скопировать целиком и вставить в консоль одним блоком. Развёрнутые варианты с явными проверками `ok` — под спойлером.
+
 ### 1. Проверить, что API доступен
+
+```js
+window.VUE_PROBE?.version; // "0.2.0"
+```
+
+<details>
+<summary>Развёрнутый пример</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -106,7 +115,18 @@ $probe.version; // "0.2.0"
 // → "0.2.0"
 ```
 
-### 2. Проверить возможности и приложения
+</details>
+
+### 2. Список активных приложений
+
+```js
+await window.VUE_PROBE
+  .listApps()
+  .then((r) => console.table(r.data));
+```
+
+<details>
+<summary>Развёрнутый пример (capabilities + apps)</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -138,7 +158,26 @@ console.table(apps.data);
 [{ id: "app", name: "App", vueVersion: "3.5.x", active: true }]
 ```
 
-### 3. Вывести неглубокое дерево компонентов
+</details>
+
+### 3. Дерево компонентов (плоское, до 5 уровня)
+
+```js
+await window.VUE_PROBE
+  .getComponentTree({ format: "flat", maxDepth: 5 })
+  .then((r) =>
+    console.table(
+      r.data?.nodes.map((n) => ({
+        id: n.id,
+        name: n.name,
+        depth: n.depth,
+      })),
+    ),
+  );
+```
+
+<details>
+<summary>Развёрнутый пример</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -164,7 +203,24 @@ console.table(
 ]
 ```
 
-### 4. Прочитать state компонента
+</details>
+
+### 4. Стейт конкретного компонента по имени (например, `UserList`)
+
+```js
+await window.VUE_PROBE
+  .getComponentTree({ format: "flat" })
+  .then((t) =>
+    window.VUE_PROBE.getComponentState(
+      t.data?.nodes.find((n) => n.name === "UserList")?.id,
+      { appId: t.data?.appId },
+    ),
+  )
+  .then((s) => console.dir(s.data?.state));
+```
+
+<details>
+<summary>Развёрнутый пример</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -200,7 +256,24 @@ console.log(state.data);
 }
 ```
 
-### 5. Получить DOM-локаторы одного отрисованного дочернего компонента
+</details>
+
+### 5. DOM-локаторы компонента по имени (например, `UserCard`)
+
+```js
+await window.VUE_PROBE
+  .getComponentTree({ format: "flat" })
+  .then((t) =>
+    window.VUE_PROBE.getComponentDOM(
+      t.data?.nodes.find((n) => n.name === "UserCard")?.id,
+      { appId: t.data?.appId },
+    ),
+  )
+  .then((d) => console.table(d.data?.roots));
+```
+
+<details>
+<summary>Развёрнутый пример</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -234,7 +307,12 @@ console.log(dom.data.roots);
 ]
 ```
 
+</details>
+
 ### 6. Прочитать следующую страницу большого state-значения
+
+<details>
+<summary>Развёрнутый пример</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -273,7 +351,23 @@ if (page.data.page?.nextOffset != null) {
 }
 ```
 
-### 7. Инспектировать Pinia
+</details>
+
+### 7. Стейт конкретного Pinia-стора (например, `users`)
+
+```js
+await window.VUE_PROBE
+  .listApps()
+  .then((a) =>
+    window.VUE_PROBE.getPiniaState("users", {
+      appId: a.data.find((x) => x.active)?.id ?? a.data[0]?.id,
+    }),
+  )
+  .then((p) => console.dir(p.data?.state));
+```
+
+<details>
+<summary>Развёрнутый пример (stores + state)</summary>
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -305,16 +399,18 @@ console.log(pinia.data);
 { storeId: "users", state: { list: [/* … */] } }
 ```
 
+</details>
+
 `getComponentDOM()` возвращает selector относительно root узла. Для открытого
 Shadow DOM поле `shadowHostSelectors` задаёт цепочку снаружи внутрь: найти host,
 перейти в его `shadowRoot`, затем применить итоговый `selector`. Для закрытого
 shadow root намеренно возвращается `selector: null`.
 
-`getComponentDOM()` ограничен 200 корневыми DOM-элементами. Не используйте
-корневой `App` как запрос DOM всей страницы: выберите конкретный отрисованный
-компонент. Если компонент публикует большой Fragment или корень с `v-for`, метод
-вернёт `INTERNAL_ERROR` с сообщением о лимите 200; выберите более узкий дочерний
-компонент.
+> `getComponentDOM()` ограничен 200 корневыми DOM-элементами. Не используйте
+> корневой `App` как запрос DOM всей страницы: выберите конкретный отрисованный
+> компонент. Если компонент публикует большой Fragment или корень с `v-for`, метод
+> вернёт `INTERNAL_ERROR` с сообщением о лимите 200; выберите более узкий дочерний
+> компонент.
 
 Каждый вызов возвращает JSON-safe envelope:
 
