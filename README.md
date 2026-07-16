@@ -62,18 +62,28 @@ vueProbe({ enabled: false });
 
 ## DevTools console
 
-With `vite serve` running and the plugin enabled, open the page → DevTools → **Console**:
+With `vite serve` running and the plugin enabled, open the page → DevTools → **Console**. Run the snippets in order; each inspection step is intentionally separate.
+
+### 1. Check that the API is available
 
 ```js
 const probe = window.VUE_PROBE;
 if (!probe) throw new Error("VUE_PROBE is not installed");
+```
 
+### 2. Check capabilities and applications
+
+```js
 const capabilities = await probe.getCapabilities();
 if (!capabilities.ok) throw new Error(capabilities.error.message);
 const apps = await probe.listApps();
 if (!apps.ok) throw new Error(apps.error.message);
+console.table(apps.data);
+```
 
-// Flat component tree (first 3 levels)
+### 3. Print a shallow component tree
+
+```js
 const tree = await probe.getComponentTree({
   format: "flat",
   maxDepth: 3,
@@ -84,19 +94,46 @@ console.table(tree.data.nodes.map((n) => ({
   name: n.name,
   depth: n.depth,
 })));
+```
 
-// Pick a real id from the tree, then inspect state / DOM in the same app
+### 4. Read component state
+
+```js
+// Pick a real id from the table above.
 const id = tree.data.nodes.find((n) => n.name.includes("App"))?.id;
 if (!id) throw new Error("Component not found in the returned tree");
 const state = await probe.getComponentState(id, { appId: tree.data.appId });
 if (!state.ok) throw new Error(state.error.message);
-const dom = await probe.getComponentDOM(id, {
-  appId: tree.data.appId,
-  expectedRevision: tree.meta.revision,
-});
-if (!dom.ok) throw new Error(dom.error.message);
+console.log(state.data);
+```
 
-// Page a large / truncated path
+### 5. Get DOM locators for one rendered child
+
+```js
+// DOM locators are for a specific rendered component, not the whole App.
+// Prefer a concrete, non-structural child; replace this predicate when you
+// know the component you need to locate.
+const domTarget = tree.data.nodes.find(
+  (n) =>
+    n.depth > 0 &&
+    !["Anonymous Component", "BaseTransition", "RouterView"].includes(n.name),
+);
+if (domTarget) {
+  const dom = await probe.getComponentDOM(domTarget.id, {
+    appId: tree.data.appId,
+    expectedRevision: tree.meta.revision,
+  });
+  if (dom.ok) console.log(dom.data.roots);
+  else
+    console.warn(
+      `DOM locator skipped for ${domTarget.name}: ${dom.error.message}`,
+    );
+}
+```
+
+### 6. Read the next page of a large state value
+
+```js
 const page = await probe.getDetailedState(
   { kind: "component", componentId: id, appId: tree.data.appId },
   ["setup", "rows"],
@@ -112,8 +149,12 @@ if (pagination?.nextOffset != null) {
   });
   if (!next.ok) throw new Error(next.error.message);
 }
+```
 
-// Pinia (when registered): IDs only by default; keys are opt-in
+### 7. Inspect Pinia
+
+```js
+// IDs only by default; keys are opt-in.
 const stores = await probe.getPiniaStores({ appId: tree.data.appId });
 if (!stores.ok) throw new Error(stores.error.message);
 const storesWithKeys = await probe.getPiniaStores({
@@ -129,6 +170,11 @@ if (!pinia.ok) throw new Error(pinia.error.message);
 open Shadow DOM it also returns `shadowHostSelectors` in outer-to-inner order:
 resolve each host, enter its `shadowRoot`, then resolve `selector`. Closed
 shadow roots intentionally return `selector: null`.
+
+`getComponentDOM()` is bounded to 200 DOM roots. Do not use the root `App` as
+a whole-page DOM query: choose the specific rendered component you need. If a
+component exposes a large Fragment or `v-for` root, the call returns
+`INTERNAL_ERROR` with the 200-root limit; select a more specific child instead.
 
 Every call returns a JSON-safe envelope:
 
@@ -159,26 +205,53 @@ If `window.VUE_PROBE` is `undefined`, the plugin is not injected (production bui
 
 ## AI agent skill
 
-This repo ships a Cursor Agent Skill that teaches models how to call `window.VUE_PROBE` safely (budgets, truncation, error envelopes).
+This repo ships an Agent Skill that teaches compatible coding agents to call
+`window.VUE_PROBE` safely (budgets, truncation, error envelopes). It follows the
+portable `SKILL.md` format.
 
-**Install into a consumer project** (after installing the plugin):
+### Recommended: one shared project skill
 
-```bash
-# From this repo / package root
-mkdir -p .cursor/skills
-cp -R skills/vue-probe .cursor/skills/vue-probe
-```
-
-Or for your user (all projects):
+For a team repository that uses more than one agent, install the skill once in
+the neutral `.agents/skills` location. GitHub Copilot officially supports this
+location alongside its native one, and Codex can use the same project skill.
 
 ```bash
-mkdir -p ~/.cursor/skills
-cp -R skills/vue-probe ~/.cursor/skills/vue-probe
+# From this repo / package root, run in the consumer project
+mkdir -p .agents/skills
+cp -R skills/vue-probe .agents/skills/vue-probe
 ```
+
+### Platform-specific locations
+
+| Agent | Project skill (commit to Git) | Personal skill (all local projects) |
+| --- | --- | --- |
+| Cursor | `.cursor/skills/vue-probe` | `~/.cursor/skills/vue-probe` |
+| [Claude Code](https://code.claude.com/docs/en/slash-commands) | `.claude/skills/vue-probe` | `~/.claude/skills/vue-probe` |
+| Codex | `.agents/skills/vue-probe` | `~/.codex/skills/vue-probe` |
+| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills) | `.github/skills/vue-probe` (also `.agents/skills` or `.claude/skills`) | `~/.copilot/skills/vue-probe` (also `~/.agents/skills`) |
+
+For example, to install it only for Claude Code in the current project:
+
+```bash
+mkdir -p .claude/skills
+cp -R skills/vue-probe .claude/skills/vue-probe
+```
+
+For a personal Codex installation:
+
+```bash
+mkdir -p ~/.codex/skills
+cp -R skills/vue-probe ~/.codex/skills/vue-probe
+```
+
+GitHub Copilot CLI can reload a newly copied skill with `/skills reload`; other
+clients may require starting a new session. Keep the directory intact: the
+entrypoint must remain `SKILL.md`.
 
 Skill source: [`skills/vue-probe/SKILL.md`](./skills/vue-probe/SKILL.md).
 
-After install, agents can use it when debugging Vue runtime state, writing Playwright probes, or when you mention `VUE_PROBE` / `vite-plugin-vue-probe`.
+After installation, agents can use it when debugging Vue runtime state, writing
+Playwright probes, or when you mention `VUE_PROBE` / `vite-plugin-vue-probe`.
 
 ---
 

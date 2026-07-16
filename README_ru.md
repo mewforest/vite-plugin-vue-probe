@@ -62,18 +62,28 @@ vueProbe({ enabled: false });
 
 ## Консоль DevTools
 
-При запущенном `vite serve` и включённом плагине откройте страницу → DevTools → **Console**:
+При запущенном `vite serve` и включённом плагине откройте страницу → DevTools → **Console**. Выполняйте сниппеты по порядку: каждый шаг инспекции вынесен отдельно.
+
+### 1. Проверить, что API доступен
 
 ```js
 const probe = window.VUE_PROBE;
 if (!probe) throw new Error("VUE_PROBE не установлен");
+```
 
+### 2. Проверить возможности и приложения
+
+```js
 const capabilities = await probe.getCapabilities();
 if (!capabilities.ok) throw new Error(capabilities.error.message);
 const apps = await probe.listApps();
 if (!apps.ok) throw new Error(apps.error.message);
+console.table(apps.data);
+```
 
-// Flat-дерево (первые 3 уровня)
+### 3. Вывести неглубокое дерево компонентов
+
+```js
 const tree = await probe.getComponentTree({
   format: "flat",
   maxDepth: 3,
@@ -84,19 +94,46 @@ console.table(tree.data.nodes.map((n) => ({
   name: n.name,
   depth: n.depth,
 })));
+```
 
-// Возьмите реальный id из дерева, затем state / DOM того же приложения
+### 4. Прочитать state компонента
+
+```js
+// Возьмите реальный id из таблицы выше.
 const id = tree.data.nodes.find((n) => n.name.includes("App"))?.id;
 if (!id) throw new Error("Компонент не найден в дереве");
 const state = await probe.getComponentState(id, { appId: tree.data.appId });
 if (!state.ok) throw new Error(state.error.message);
-const dom = await probe.getComponentDOM(id, {
-  appId: tree.data.appId,
-  expectedRevision: tree.meta.revision,
-});
-if (!dom.ok) throw new Error(dom.error.message);
+console.log(state.data);
+```
 
-// Дочитать большой / truncated path
+### 5. Получить DOM-локаторы одного отрисованного дочернего компонента
+
+```js
+// DOM-локаторы нужны для конкретного отрисованного компонента, а не всего App.
+// Предпочтителен конкретный дочерний компонент; когда нужный компонент известен,
+// замените это условие на его имя или id.
+const domTarget = tree.data.nodes.find(
+  (n) =>
+    n.depth > 0 &&
+    !["Anonymous Component", "BaseTransition", "RouterView"].includes(n.name),
+);
+if (domTarget) {
+  const dom = await probe.getComponentDOM(domTarget.id, {
+    appId: tree.data.appId,
+    expectedRevision: tree.meta.revision,
+  });
+  if (dom.ok) console.log(dom.data.roots);
+  else
+    console.warn(
+      `DOM-локатор пропущен для ${domTarget.name}: ${dom.error.message}`,
+    );
+}
+```
+
+### 6. Прочитать следующую страницу большого state-значения
+
+```js
 const page = await probe.getDetailedState(
   { kind: "component", componentId: id, appId: tree.data.appId },
   ["setup", "rows"],
@@ -112,8 +149,12 @@ if (pagination?.nextOffset != null) {
   });
   if (!next.ok) throw new Error(next.error.message);
 }
+```
 
-// Pinia (если inspector зарегистрирован): по умолчанию только ID
+### 7. Инспектировать Pinia
+
+```js
+// По умолчанию доступны только ID; ключи запрашиваются отдельно.
 const stores = await probe.getPiniaStores({ appId: tree.data.appId });
 if (!stores.ok) throw new Error(stores.error.message);
 const storesWithKeys = await probe.getPiniaStores({
@@ -129,6 +170,12 @@ if (!pinia.ok) throw new Error(pinia.error.message);
 Shadow DOM поле `shadowHostSelectors` задаёт цепочку снаружи внутрь: найти host,
 перейти в его `shadowRoot`, затем применить итоговый `selector`. Для закрытого
 shadow root намеренно возвращается `selector: null`.
+
+`getComponentDOM()` ограничен 200 корневыми DOM-элементами. Не используйте
+корневой `App` как запрос DOM всей страницы: выберите конкретный отрисованный
+компонент. Если компонент публикует большой Fragment или корень с `v-for`, метод
+вернёт `INTERNAL_ERROR` с сообщением о лимите 200; выберите более узкий дочерний
+компонент.
 
 Каждый вызов возвращает JSON-safe envelope:
 
@@ -159,26 +206,53 @@ type ProbeResult<T> =
 
 ## Skill для ИИ-агентов
 
-В репозитории есть Cursor Agent Skill: учит модели безопасно вызывать `window.VUE_PROBE` (budgets, truncation, error envelopes).
+В репозитории есть Agent Skill: он учит совместимых coding-агентов безопасно
+вызывать `window.VUE_PROBE` (budgets, truncation, error envelopes). Формат
+`SKILL.md` переносим между агентами.
 
-**Установка в проект-потребитель** (после установки плагина):
+### Рекомендуется: один общий skill в проекте
 
-```bash
-# Из корня этого репо / пакета
-mkdir -p .cursor/skills
-cp -R skills/vue-probe .cursor/skills/vue-probe
-```
-
-Или для пользователя (все проекты):
+Если в команде используется несколько агентов, установите skill один раз в
+нейтральный каталог `.agents/skills`. GitHub Copilot официально поддерживает
+этот путь наряду с нативным, а Codex может использовать тот же project skill.
 
 ```bash
-mkdir -p ~/.cursor/skills
-cp -R skills/vue-probe ~/.cursor/skills/vue-probe
+# Из корня этого репо / пакета; выполнять в проекте-потребителе
+mkdir -p .agents/skills
+cp -R skills/vue-probe .agents/skills/vue-probe
 ```
+
+### Пути для отдельных платформ
+
+| Агент | Project skill (добавьте в Git) | Personal skill (для всех локальных проектов) |
+| --- | --- | --- |
+| Cursor | `.cursor/skills/vue-probe` | `~/.cursor/skills/vue-probe` |
+| [Claude Code](https://code.claude.com/docs/en/slash-commands) | `.claude/skills/vue-probe` | `~/.claude/skills/vue-probe` |
+| Codex | `.agents/skills/vue-probe` | `~/.codex/skills/vue-probe` |
+| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills) | `.github/skills/vue-probe` (также `.agents/skills` или `.claude/skills`) | `~/.copilot/skills/vue-probe` (также `~/.agents/skills`) |
+
+Например, чтобы установить skill только для Claude Code в текущий проект:
+
+```bash
+mkdir -p .claude/skills
+cp -R skills/vue-probe .claude/skills/vue-probe
+```
+
+Для личной установки в Codex:
+
+```bash
+mkdir -p ~/.codex/skills
+cp -R skills/vue-probe ~/.codex/skills/vue-probe
+```
+
+В GitHub Copilot CLI новый skill можно подхватить командой `/skills reload`; в
+остальных клиентах может потребоваться новая сессия. Не меняйте структуру
+каталога: entrypoint должен оставаться `SKILL.md`.
 
 Исходник: [`skills/vue-probe/SKILL.md`](./skills/vue-probe/SKILL.md).
 
-После установки агенты подхватывают skill при отладке Vue runtime, написании Playwright-проб или упоминании `VUE_PROBE` / `vite-plugin-vue-probe`.
+После установки агенты подхватывают skill при отладке Vue runtime, написании
+Playwright-проб или упоминании `VUE_PROBE` / `vite-plugin-vue-probe`.
 
 ---
 

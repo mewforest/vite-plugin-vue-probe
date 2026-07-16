@@ -51,8 +51,9 @@ const tree = await probe.getComponentTree({
 });
 if (!tree.ok) throw new Error(tree.error.message);
 
-const id = tree.data.nodes[0]?.id;
-if (!id) throw new Error("No matching component");
+const component = tree.data.nodes.find((node) => node.name === "UserCard");
+if (!component) throw new Error("No matching component");
+const id = component.id;
 const state = await probe.getComponentState(id, { appId: tree.data.appId });
 if (!state.ok) throw new Error(state.error.message);
 const dom = await probe.getComponentDOM(id, {
@@ -99,6 +100,11 @@ To replay a DOM locator, start at `document`, resolve every
 `shadowHostSelectors` entry in order and enter the host's open `shadowRoot`,
 then resolve `selector`. `selector: null` means no safe replayable locator is
 available (detached node, ambiguous path, or closed shadow root).
+
+`getComponentDOM()` is limited to 200 DOM roots. Use it for a specific rendered
+component (for example, the filtered `UserCard` above), not the root application
+component. If it returns `INTERNAL_ERROR` about that limit, narrow the tree
+filter or choose a more specific child component.
 
 ## From Playwright / browser tools
 
