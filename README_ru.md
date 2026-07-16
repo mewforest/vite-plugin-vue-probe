@@ -58,27 +58,47 @@ vueProbe({ enabled: false });
 
 ---
 
-## Типичный сценарий
+## Консоль DevTools
+
+При запущенном `vite serve` и включённом плагине откройте страницу → DevTools → **Console**:
 
 ```js
-const apps = await window.VUE_PROBE.listApps();
+// Плагин на месте?
+window.VUE_PROBE?.version;
+
+// Capabilities + apps
+await window.VUE_PROBE.getCapabilities();
+await window.VUE_PROBE.listApps();
+
+// Flat-дерево (первые 3 уровня)
 const tree = await window.VUE_PROBE.getComponentTree({
   format: "flat",
   maxDepth: 3,
 });
-const state = await window.VUE_PROBE.getComponentState("app-id:42");
+console.table(
+  tree.ok
+    ? tree.data.nodes.map((n) => ({ id: n.id, name: n.name, depth: n.depth }))
+    : tree.error,
+);
 
-// Большие значения возвращаются как {$type: 'truncated', path, total, nextOffset, ...}
-const page = await window.VUE_PROBE.getDetailedState(
-  { kind: "component", componentId: "app-id:42" },
+// Возьмите реальный id из дерева, затем state / DOM
+const id = tree.data.nodes.find((n) => n.name.includes("App"))?.id;
+await window.VUE_PROBE.getComponentState(id);
+await window.VUE_PROBE.getComponentDOM(id);
+
+// Дочитать большой / truncated path
+await window.VUE_PROBE.getDetailedState(
+  { kind: "component", componentId: id },
   ["setup", "rows"],
   { offset: 0, limit: 50 },
 );
 
-const dom = await window.VUE_PROBE.getComponentDOM("app-id:42");
+// Pinia (если inspector зарегистрирован)
+await window.VUE_PROBE.getPiniaStores();
+await window.VUE_PROBE.getPiniaState("users");
 ```
 
-Все методы асинхронны и возвращают JSON-safe union:
+Каждый вызов возвращает JSON-safe envelope:
 
 ```ts
 type ProbeResult<T> =
@@ -93,6 +113,33 @@ type ProbeResult<T> =
       meta: { requestId: string; revision: number; observedAt: string };
     };
 ```
+
+Если `window.VUE_PROBE` — `undefined`, плагин не инжектится (production build, `enabled: false`, или нет в `vite.config`).
+
+---
+
+## Skill для ИИ-агентов
+
+В репозитории есть Cursor Agent Skill: учит модели безопасно вызывать `window.VUE_PROBE` (budgets, truncation, error envelopes).
+
+**Установка в проект-потребитель** (после установки плагина):
+
+```bash
+# Из корня этого репо / пакета
+mkdir -p .cursor/skills
+cp -R skills/vue-probe .cursor/skills/vue-probe
+```
+
+Или для пользователя (все проекты):
+
+```bash
+mkdir -p ~/.cursor/skills
+cp -R skills/vue-probe ~/.cursor/skills/vue-probe
+```
+
+Исходник: [`skills/vue-probe/SKILL.md`](./skills/vue-probe/SKILL.md).
+
+После установки агенты подхватывают skill при отладке Vue runtime, написании Playwright-проб или упоминании `VUE_PROBE` / `vite-plugin-vue-probe`.
 
 ---
 

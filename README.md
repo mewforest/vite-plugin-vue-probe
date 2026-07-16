@@ -58,27 +58,47 @@ vueProbe({ enabled: false });
 
 ---
 
-## Typical workflow
+## DevTools console
+
+With `vite serve` running and the plugin enabled, open the page → DevTools → **Console**:
 
 ```js
-const apps = await window.VUE_PROBE.listApps();
+// Is the probe installed?
+window.VUE_PROBE?.version;
+
+// Capabilities + apps
+await window.VUE_PROBE.getCapabilities();
+await window.VUE_PROBE.listApps();
+
+// Flat component tree (first 3 levels)
 const tree = await window.VUE_PROBE.getComponentTree({
   format: "flat",
   maxDepth: 3,
 });
-const state = await window.VUE_PROBE.getComponentState("app-id:42");
+console.table(
+  tree.ok
+    ? tree.data.nodes.map((n) => ({ id: n.id, name: n.name, depth: n.depth }))
+    : tree.error,
+);
 
-// Oversized values come back as {$type: 'truncated', path, total, nextOffset, ...}
-const page = await window.VUE_PROBE.getDetailedState(
-  { kind: "component", componentId: "app-id:42" },
+// Pick a real id from the tree, then inspect state / DOM
+const id = tree.data.nodes.find((n) => n.name.includes("App"))?.id;
+await window.VUE_PROBE.getComponentState(id);
+await window.VUE_PROBE.getComponentDOM(id);
+
+// Page a large / truncated path
+await window.VUE_PROBE.getDetailedState(
+  { kind: "component", componentId: id },
   ["setup", "rows"],
   { offset: 0, limit: 50 },
 );
 
-const dom = await window.VUE_PROBE.getComponentDOM("app-id:42");
+// Pinia (when registered)
+await window.VUE_PROBE.getPiniaStores();
+await window.VUE_PROBE.getPiniaState("users");
 ```
 
-All methods are async and return a JSON-safe union:
+Every call returns a JSON-safe envelope:
 
 ```ts
 type ProbeResult<T> =
@@ -93,6 +113,33 @@ type ProbeResult<T> =
       meta: { requestId: string; revision: number; observedAt: string };
     };
 ```
+
+If `window.VUE_PROBE` is `undefined`, the plugin is not injected (production build, `enabled: false`, or not in `vite.config`).
+
+---
+
+## AI agent skill
+
+This repo ships a Cursor Agent Skill that teaches models how to call `window.VUE_PROBE` safely (budgets, truncation, error envelopes).
+
+**Install into a consumer project** (after installing the plugin):
+
+```bash
+# From this repo / package root
+mkdir -p .cursor/skills
+cp -R skills/vue-probe .cursor/skills/vue-probe
+```
+
+Or for your user (all projects):
+
+```bash
+mkdir -p ~/.cursor/skills
+cp -R skills/vue-probe ~/.cursor/skills/vue-probe
+```
+
+Skill source: [`skills/vue-probe/SKILL.md`](./skills/vue-probe/SKILL.md).
+
+After install, agents can use it when debugging Vue runtime state, writing Playwright probes, or when you mention `VUE_PROBE` / `vite-plugin-vue-probe`.
 
 ---
 
