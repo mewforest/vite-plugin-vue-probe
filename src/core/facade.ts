@@ -24,6 +24,7 @@ import type {
 } from "../data-source/types.js";
 import { DataSourceError } from "../data-source/types.js";
 import { createDOMLocators } from "./dom.js";
+import { probeFormatters } from "./formatters.js";
 import {
   ProbePathError,
   normalizeDetailedOptions,
@@ -62,7 +63,7 @@ import {
   validateStateRead,
 } from "./validation.js";
 
-export const PROBE_API_VERSION = "0.2.0";
+export const PROBE_API_VERSION = "0.3.0";
 
 const CAPABILITY_DEFAULTS = Object.freeze({
   maxDepth: SERIALIZATION_DEFAULTS.maxDepth,
@@ -626,6 +627,7 @@ export function createProbeAPI(source: ProbeDataSource): ProbeAPI {
 
   return {
     version: PROBE_API_VERSION,
+    formatters: probeFormatters,
     getCapabilities: () =>
       run(async () => {
         const apps = source.listApps();

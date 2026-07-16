@@ -34,6 +34,10 @@ describe("installProbeAPI", () => {
     expect(first).toBe(second);
     expect(first).toBe(window.VUE_PROBE);
     expect(Object.isFrozen(first)).toBe(true);
+    expect(Object.isFrozen(first!.formatters)).toBe(true);
+    expect(first!.formatters.stateToPaths({ setup: { count: 1 } })).toBe(
+      "setup.count = 1",
+    );
     expect(source.init).toHaveBeenCalledOnce();
     expect(info).toHaveBeenCalledOnce();
     expect(info.mock.calls[0]?.[0]).toMatch(

@@ -156,10 +156,12 @@ export function validateStateRead(
     "maxDepth",
     "maxEntries",
     "maxStringLength",
+    "bypassBudgets",
   ]);
   optionalId(record.appId, "appId");
   optionalRevision(record.expectedRevision);
   optionalBoolean(record.includeMetadata, "includeMetadata");
+  optionalBoolean(record.bypassBudgets, "bypassBudgets");
   validateSerializationRecord(record);
   return {
     id: requiredId(id, idName),
@@ -210,8 +212,10 @@ export function validateDetailedState(
     "maxDepth",
     "maxEntries",
     "maxStringLength",
+    "bypassBudgets",
   ]);
   optionalRevision(options.expectedRevision);
+  optionalBoolean(options.bypassBudgets, "bypassBudgets");
   normalizeDetailedOptions(options);
   return {
     target: target as unknown as StateTarget,

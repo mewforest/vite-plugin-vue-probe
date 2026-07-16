@@ -102,6 +102,11 @@ describe("Probe API runtime validation", () => {
         api.getComponentState("component", { expectedRevision: -1 }),
     ],
     [
+      "component budget bypass",
+      (api: RuntimeProbeAPI) =>
+        api.getComponentState("component", { bypassBudgets: "yes" }),
+    ],
+    [
       "detailed target",
       (api: RuntimeProbeAPI) => api.getDetailedState(null, [], {}),
     ],
@@ -122,6 +127,15 @@ describe("Probe API runtime validation", () => {
           { kind: "component", componentId: "component" },
           [],
           null,
+        ),
+    ],
+    [
+      "detailed budget bypass",
+      (api: RuntimeProbeAPI) =>
+        api.getDetailedState(
+          { kind: "component", componentId: "component" },
+          [],
+          { bypassBudgets: 1 },
         ),
     ],
     [

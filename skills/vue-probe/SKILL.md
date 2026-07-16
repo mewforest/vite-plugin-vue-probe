@@ -11,7 +11,7 @@ description: >-
 
 Read-only runtime inspection for Vue 3 apps that use `vite-plugin-vue-probe`.
 API exists only during `vite serve` as `window.VUE_PROBE`.
-This workflow targets API `0.2.0`; verify `window.VUE_PROBE.version` first.
+This workflow targets API `0.3.0`; verify `window.VUE_PROBE.version` first.
 
 ## Preconditions
 
@@ -29,6 +29,17 @@ If `undefined`, the plugin is missing, disabled, or this is a production build. 
 - **Read-only** — never invent mutation helpers; v1 cannot edit state or call actions.
 - Every method returns `ProbeResult<T>`: `{ ok: true, data, meta }` or `{ ok: false, error, meta }`.
 - Always check `ok` before using `data`.
+- **Format before context:** after every `getComponentTree`, `getComponentState`,
+  `getPiniaState`, or `getComponentDOM` call, you MUST run the successful data
+  through `VUE_PROBE.formatters` before adding it to agent context. Use
+  `toMarkdown` for trees/state and `domToTable` for DOM roots. Keep the raw
+  response inside the page/tool execution only.
+- **Discover paths, never guess them:** when state contains a truncated array or
+  object and its exact `getDetailedState` path is unclear, first call
+  `formatters.stateToPaths(state.data.state)` and use the emitted path.
+- **No autonomous bypass:** use `{ bypassBudgets: true }` only when the user
+  directly asks for a complete/full state or store read. It spends browser work
+  and context aggressively. Otherwise keep soft budgets and paginate.
 - Prefer `format: 'flat'` + `maxDepth` for trees; page large values with `getDetailedState`.
 - Oversized values arrive as `{ $type: 'truncated', path, total, nextOffset, ... }` — page them, do not dump blindly.
 - Keep the selected `appId` on state and DOM reads in multi-app pages.
@@ -65,6 +76,7 @@ const tree = await $probe.getComponentTree({
   filter: "User", // optional: UserList / UserCard
 });
 if (!tree.ok) throw new Error(tree.error.message);
+const treeMarkdown = $probe.formatters.toMarkdown(tree.data);
 
 // State of the list (rows may be truncated)
 const list = tree.data.nodes.find((n) => n.name === "UserList");
@@ -73,6 +85,8 @@ const state = await $probe.getComponentState(list.id, {
   appId: tree.data.appId,
 });
 if (!state.ok) throw new Error(state.error.message);
+const stateMarkdown = $probe.formatters.toMarkdown(state.data.state);
+const statePaths = $probe.formatters.stateToPaths(state.data.state);
 
 // DOM of one card — not App
 const card = tree.data.nodes.find((n) => n.name === "UserCard");
@@ -82,6 +96,7 @@ const dom = await $probe.getComponentDOM(card.id, {
   expectedRevision: tree.meta.revision,
 });
 if (!dom.ok) throw new Error(dom.error.message);
+const domTable = $probe.formatters.domToTable(dom.data.roots);
 
 // Page UserList.setup.rows when truncated
 const page = await $probe.getDetailedState(
@@ -108,6 +123,10 @@ const storesWithKeys = await $probe.getPiniaStores({
 if (!storesWithKeys.ok) throw new Error(storesWithKeys.error.message);
 const pinia = await $probe.getPiniaState("users", { appId: tree.data.appId });
 if (!pinia.ok) throw new Error(pinia.error.message);
+const piniaMarkdown = $probe.formatters.toMarkdown(pinia.data.state);
+
+// Return compact strings to the agent/tool boundary, not raw payloads.
+({ treeMarkdown, stateMarkdown, statePaths, domTable, piniaMarkdown });
 ```
 
 Hard limits exposed by capabilities for serialized state data include depth
@@ -137,8 +156,22 @@ await page.evaluate(async () => {
       ok: false,
       error: { code: "NOT_AVAILABLE", message: "VUE_PROBE missing" },
     };
-  return api.getComponentTree({ format: "flat", maxDepth: 2 });
+  const tree = await api.getComponentTree({ format: "flat", maxDepth: 2 });
+  if (!tree.ok) return tree;
+  return { ok: true, markdown: api.formatters.toMarkdown(tree.data) };
 });
+```
+
+For an explicit user request such as “read the entire store”, bypass soft
+budgets but keep detailed reads paginated:
+
+```js
+const state = await $probe.getPiniaState("users", {
+  appId: tree.data.appId,
+  bypassBudgets: true,
+});
+if (!state.ok) throw new Error(state.error.message);
+$probe.formatters.toMarkdown(state.data.state);
 ```
 
 ## Error codes

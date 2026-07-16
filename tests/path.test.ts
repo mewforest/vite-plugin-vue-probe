@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   ProbePathError,
+  normalizeDetailedOptions,
   resolveDetailedValue,
 } from "../src/core/path";
 import {
+  HARD_MAX_DEPTH,
+  HARD_MAX_ENTRIES,
   HARD_MAX_OFFSET,
   HARD_MAX_PATH_SEGMENT_LENGTH,
   HARD_MAX_PATH_SEGMENTS,
@@ -11,6 +14,34 @@ import {
 } from "../src/core/contract";
 
 describe("resolveDetailedValue", () => {
+  it("uses hard defaults for a bypassed detailed read", () => {
+    expect(normalizeDetailedOptions({ bypassBudgets: true })).toEqual({
+      offset: 0,
+      limit: HARD_MAX_ENTRIES,
+      maxEntries: HARD_MAX_ENTRIES,
+      maxDepth: HARD_MAX_DEPTH,
+      maxStringLength: 100_000,
+    });
+  });
+
+  it("keeps explicit detailed limits when soft budgets are bypassed", () => {
+    expect(
+      normalizeDetailedOptions({
+        bypassBudgets: true,
+        limit: 17,
+        maxEntries: 11,
+        maxDepth: 4,
+        maxStringLength: 800,
+      }),
+    ).toEqual({
+      offset: 0,
+      limit: 17,
+      maxEntries: 11,
+      maxDepth: 4,
+      maxStringLength: 800,
+    });
+  });
+
   it.each([
     ["array", (huge: unknown) => [huge, "second"]],
     ["object", (huge: unknown) => ({ first: huge, second: "second" })],

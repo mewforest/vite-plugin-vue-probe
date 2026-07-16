@@ -8,7 +8,7 @@ PoC опирается на Vue DevTools v8 (`@vue/devtools-kit`) и даёт д
 
 > **Статус:** proof of concept. API намеренно не попадает в production build, не изменяет state и не вызывает actions.
 
-Текущая версия публичного контракта — **API 0.2.0**.
+Текущая версия публичного контракта — **API 0.3.0**.
 
 ---
 
@@ -20,6 +20,8 @@ PoC опирается на Vue DevTools v8 (`@vue/devtools-kit`) и даёт д
 | Состояние компонента | Props, setup, data, computed, attrs, provide/inject, refs              |
 | Pinia                | Список store и budgeted state, если inspector зарегистрирован          |
 | Ленивые paths        | Дочитывание больших значений через `getDetailedState` без полного dump |
+| Budget bypass        | Глубокое чтение до hard limits только по явному запросу человека       |
+| Текстовые форматтеры | Компактные paths, Markdown, DOM-таблицы, Mermaid и чистый JSON          |
 | DOM-локаторы         | JSON selectors / rects для корневых элементов компонента               |
 | Безопасный ответ     | Каждый вызов — `ProbeResult<T>`: успех или структурированная ошибка    |
 
@@ -65,7 +67,7 @@ vueProbe({ enabled: false });
 При запущенном `vite serve` и включённом плагине откройте страницу → DevTools → **Console**. При инициализации в консоли появится что-то вроде:
 
 ```text
-🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.2.0)
+🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.3.0)
 ```
 
 Каждый сниппет ниже **самодостаточен** — можно вставить любой отдельно. Имена в примерах — из toy-приложения (подставьте свои).
@@ -94,7 +96,7 @@ flowchart LR
 
 ```js
 // Проверить, что probe инжектирован
-window.VUE_PROBE?.version; // "0.2.0"
+window.VUE_PROBE?.version; // "0.3.0"
 ```
 
 <details>
@@ -105,11 +107,11 @@ Verbose-версия с явными проверками `ok`.
 ```js
 const $probe = window.VUE_PROBE;
 if (!$probe) throw new Error("VUE_PROBE не установлен");
-$probe.version; // "0.2.0"
+$probe.version; // "0.3.0"
 ```
 
 ```js
-// → "0.2.0"
+// → "0.3.0"
 ```
 
 </details>
@@ -146,7 +148,7 @@ console.table(apps.data);
 {
   ok: true,
   data: {
-    apiVersion: "0.2.0",
+    apiVersion: "0.3.0",
     vueDetected: true,
     piniaDetected: true,
     componentTree: true,
@@ -452,9 +454,28 @@ type ProbeResult<T> =
 ### Budgets и revisions
 
 - Initial read: depth `2`, `25` entries и `500` символов строки; detailed read: depth `3`, page size `50`.
+- `{ bypassBudgets: true }` для component, Pinia или detailed state заменяет только неуказанные soft defaults на hard maxima. Явные `maxDepth`, `maxEntries`, `maxStringLength` и `limit` имеют приоритет. Detailed values остаются paginated (до `200` элементов); bypass никогда не отключает hard limits.
 - Для serialized component/Pinia/detail state data hard limits равны depth `20`, `200` entries на container/page, `100 000` символов на строку, `1 000 000` символов суммарно и `5 000` узлов. Aggregate limit не относится к envelope, app list и component tree. Ограничения identifier/path/offset публикует `getCapabilities()`.
 - `revision` — token инвалидизации inspector, а не счётчик mutations. Его меняют component lifecycle/update events и инвалидизация Pinia inspector state; событие без appId консервативно инвалидирует все live apps.
 - Snapshot read проверяет revision до и после чтения. Несовпавший `expectedRevision` или update во время чтения даёт `STALE_REVISION`; повторять нужно с revision свежего ответа.
+
+### Встроенные форматтеры
+
+Замороженный namespace `window.VUE_PROBE.formatters` преобразует успешные
+JSON-ответы в компактные строки, не обращаясь к Vue или DOM:
+
+```js
+const state = await window.VUE_PROBE.getComponentState("app:2");
+if (!state.ok) throw new Error(state.error.message);
+
+window.VUE_PROBE.formatters.stateToPaths(state.data.state);
+window.VUE_PROBE.formatters.toMarkdown(state.data.state);
+window.VUE_PROBE.formatters.toCleanJson(state.data.state);
+```
+
+Для дерева компонентов используйте `toMarkdown(tree.data)`, для DOM-локаторов
+— `domToTable(dom.data.roots)`, для Mermaid-схемы `graph TD` —
+`treeToMermaid(tree.data)`.
 
 ---
 

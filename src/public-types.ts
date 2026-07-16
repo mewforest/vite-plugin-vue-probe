@@ -187,6 +187,7 @@ export interface SerializationBudget {
   maxDepth?: number;
   maxEntries?: number;
   maxStringLength?: number;
+  bypassBudgets?: boolean;
 }
 
 export interface StateReadOptions extends SerializationBudget {
@@ -319,8 +320,24 @@ export interface ComponentDOMOptions {
   expectedRevision?: number;
 }
 
+export interface ProbeFormatters {
+  stateToPaths(
+    stateData: ComponentStateResult["state"] | PiniaStateResult["state"],
+  ): string;
+  toMarkdown(
+    data:
+      | ComponentTreeResult
+      | ComponentStateResult["state"]
+      | PiniaStateResult["state"],
+  ): string;
+  domToTable(locators: ComponentDOMResult["roots"]): string;
+  treeToMermaid(treeData: ComponentTreeResult): string;
+  toCleanJson(data: unknown): string;
+}
+
 export interface ProbeAPI {
   readonly version: string;
+  readonly formatters: Readonly<ProbeFormatters>;
   getCapabilities(): Promise<ProbeResult<ProbeCapabilities>>;
   listApps(): Promise<ProbeResult<AppSummary[]>>;
   getComponentTree(

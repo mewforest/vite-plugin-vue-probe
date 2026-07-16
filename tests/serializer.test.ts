@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  HARD_MAX_ENTRIES,
   HARD_MAX_DEPTH,
   HARD_MAX_PATH_SEGMENT_LENGTH,
   HARD_MAX_NODES,
@@ -15,6 +16,25 @@ import {
 } from "../src/core/serializer";
 
 describe("serializeProbeValue", () => {
+  it("uses hard per-value defaults when soft budgets are bypassed", () => {
+    expect(createSerializationContext({ bypassBudgets: true }).options).toEqual({
+      maxDepth: HARD_MAX_DEPTH,
+      maxEntries: HARD_MAX_ENTRIES,
+      maxStringLength: HARD_MAX_STRING_LENGTH,
+    });
+  });
+
+  it("keeps explicit budgets when soft budgets are bypassed", () => {
+    expect(
+      createSerializationContext({
+        bypassBudgets: true,
+        maxDepth: 4,
+        maxEntries: 30,
+        maxStringLength: 900,
+      }).options,
+    ).toEqual({ maxDepth: 4, maxEntries: 30, maxStringLength: 900 });
+  });
+
   it("keeps JSON primitives and represents non-JSON primitives explicitly", () => {
     expect(serializeProbeValue(undefined)).toEqual({ $type: "undefined" });
     expect(serializeProbeValue(Number.NaN)).toEqual({
@@ -150,14 +170,11 @@ describe("serializeProbeValue", () => {
     ).toThrowError(ProbeOptionsError);
   });
 
-  it("shares a hard node budget across serialization calls", () => {
+  it("keeps the shared hard node budget when soft budgets are bypassed", () => {
     const dense = Array.from({ length: 20 }, () =>
       Array.from({ length: 200 }, () => 1),
     );
-    const context = createSerializationContext({
-      maxDepth: 20,
-      maxEntries: 200,
-    });
+    const context = createSerializationContext({ bypassBudgets: true });
 
     serializeProbeValue(dense, { path: ["setup", "first"] }, context);
     const second = serializeProbeValue(

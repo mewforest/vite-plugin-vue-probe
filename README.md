@@ -8,7 +8,7 @@ Built on Vue DevTools v8 (`@vue/devtools-kit`). Provides the component tree, com
 
 > **Status:** proof of concept. The API never ships in production builds, never mutates state, and never invokes actions.
 
-The current public contract is **API 0.2.0**.
+The current public contract is **API 0.3.0**.
 
 ---
 
@@ -20,6 +20,8 @@ The current public contract is **API 0.2.0**.
 | Component state | Props, setup, data, computed, attrs, provide/inject, refs                 |
 | Pinia           | Store list and budgeted store state when the inspector is registered      |
 | Lazy paths      | Page large values via `getDetailedState` without dumping the whole object |
+| Budget bypass   | Opt into hard-bounded deep state reads on explicit human request           |
+| Text formatters | Compact paths, Markdown, DOM tables, Mermaid, and clean JSON               |
 | DOM locators    | JSON selectors / rects for a component’s root elements                    |
 | Safe envelope   | Every call returns `ProbeResult<T>` — success or structured error         |
 
@@ -65,7 +67,7 @@ vueProbe({ enabled: false });
 With `vite serve` running and the plugin enabled, open the page → DevTools → **Console**. On load you should see something like:
 
 ```text
-🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.2.0)
+🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.3.0)
 ```
 
 Each snippet below is **self-contained** — paste any one alone. Names come from a tiny toy app (swap in yours).
@@ -94,7 +96,7 @@ Pasteable `.then()` chains below are still single expressions. Variants with exp
 
 ```js
 // Confirm probe is injected
-window.VUE_PROBE?.version; // "0.2.0"
+window.VUE_PROBE?.version; // "0.3.0"
 ```
 
 <details>
@@ -105,11 +107,11 @@ Verbose version with explicit `ok` checks.
 ```js
 const $probe = window.VUE_PROBE;
 if (!$probe) throw new Error("VUE_PROBE is not installed");
-$probe.version; // "0.2.0"
+$probe.version; // "0.3.0"
 ```
 
 ```js
-// → "0.2.0"
+// → "0.3.0"
 ```
 
 </details>
@@ -146,7 +148,7 @@ console.table(apps.data);
 {
   ok: true,
   data: {
-    apiVersion: "0.2.0",
+    apiVersion: "0.3.0",
     vueDetected: true,
     piniaDetected: true,
     componentTree: true,
@@ -451,9 +453,28 @@ If `window.VUE_PROBE` is `undefined`, the plugin is not injected (production bui
 ### Budgets and revisions
 
 - Initial reads default to depth `2`, `25` entries, and `500` string characters; detailed reads default to depth `3` and page size `50`.
+- `{ bypassBudgets: true }` on component, Pinia, or detailed state reads replaces omitted soft defaults with the hard maxima. Explicit `maxDepth`, `maxEntries`, `maxStringLength`, and `limit` still win. Detailed values remain paginated (up to `200` items); bypass never disables hard limits.
 - For serialized component/Pinia/detail state data, hard limits are depth `20`, `200` entries per container/page, `100,000` characters per string, `1,000,000` aggregate emitted string characters, and `5,000` serialized nodes. This aggregate limit does not describe envelopes, app lists, or component trees. Identifier/path length and offset limits are reported by `getCapabilities()`.
 - `revision` is an inspector-invalidation token, not a mutation counter. Component lifecycle/update events and Pinia inspector-state invalidation advance it; an unattributed invalidation conservatively advances every live app.
 - Snapshot reads check revision before and after the read. A mismatched `expectedRevision`, or an update during the read, returns `STALE_REVISION`; retry from a fresh response revision.
+
+### Built-in formatters
+
+The frozen `window.VUE_PROBE.formatters` namespace converts successful JSON
+payloads into compact strings without reading Vue or the DOM:
+
+```js
+const state = await window.VUE_PROBE.getComponentState("app:2");
+if (!state.ok) throw new Error(state.error.message);
+
+window.VUE_PROBE.formatters.stateToPaths(state.data.state);
+window.VUE_PROBE.formatters.toMarkdown(state.data.state);
+window.VUE_PROBE.formatters.toCleanJson(state.data.state);
+```
+
+Use `toMarkdown(tree.data)` for component trees,
+`domToTable(dom.data.roots)` for DOM locators, and `treeToMermaid(tree.data)`
+for a Mermaid `graph TD` diagram.
 
 ---
 

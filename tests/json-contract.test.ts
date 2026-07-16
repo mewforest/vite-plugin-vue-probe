@@ -143,7 +143,7 @@ describe("public JSON wire contract", () => {
     expect(result).toMatchObject({
       ok: true,
       data: {
-        apiVersion: "0.2.0",
+        apiVersion: "0.3.0",
         defaults: {
           maxDepth: 2,
           maxEntries: 25,

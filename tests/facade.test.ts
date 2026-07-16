@@ -161,11 +161,19 @@ describe("Probe API facade", () => {
   it("returns capabilities, app list, and flat depth-limited trees", async () => {
     const api = createProbeAPI(sourceFixture());
     const capabilities = await api.getCapabilities();
-    expect(api.version).toBe("0.2.0");
+    expect(api.version).toBe("0.3.0");
+    expect(Object.keys(api.formatters).sort()).toEqual([
+      "domToTable",
+      "stateToPaths",
+      "toCleanJson",
+      "toMarkdown",
+      "treeToMermaid",
+    ]);
+    expect(Object.isFrozen(api.formatters)).toBe(true);
     expect(capabilities).toMatchObject({
       ok: true,
       data: {
-        apiVersion: "0.2.0",
+        apiVersion: "0.3.0",
         vueDetected: true,
         piniaDetected: true,
         defaults: {

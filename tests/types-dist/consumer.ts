@@ -18,6 +18,27 @@ declare const api: ProbeAPI;
 declare const options: ComponentDOMOptions;
 declare const detailResult: DetailedStateResult;
 
+void api.getComponentState("component-1", { bypassBudgets: true });
+void api.getDetailedState(
+  { kind: "component", componentId: "component-1" },
+  ["setup", "rows"],
+  { bypassBudgets: true },
+);
+const paths: string = api.formatters.stateToPaths({ setup: { count: 1 } });
+const markdown: string = api.formatters.toMarkdown({ setup: { count: 1 } });
+const table: string = api.formatters.domToTable([]);
+void api.formatters.treeToMermaid({
+  appId: "app-1",
+  rootId: "root",
+  format: "flat",
+  nodes: [],
+  truncatedByDepth: false,
+});
+void api.formatters.toCleanJson({ value: 1 });
+void paths;
+void markdown;
+void table;
+
 void api.getComponentDOM("component-1", {
   appId: "app-1",
   expectedRevision: 4,

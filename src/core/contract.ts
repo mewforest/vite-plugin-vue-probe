@@ -61,21 +61,28 @@ export function integerOption(
 export function normalizeSerializationOptions(
   options: SerializationBudget = {},
 ): NormalizedSerializationOptions {
+  const defaults = options.bypassBudgets
+    ? {
+        maxDepth: HARD_MAX_DEPTH,
+        maxEntries: HARD_MAX_ENTRIES,
+        maxStringLength: HARD_MAX_STRING_LENGTH,
+      }
+    : SERIALIZATION_DEFAULTS;
   return {
     maxDepth: integerOption(
-      options.maxDepth ?? SERIALIZATION_DEFAULTS.maxDepth,
+      options.maxDepth ?? defaults.maxDepth,
       "maxDepth",
       0,
       HARD_MAX_DEPTH,
     ),
     maxEntries: integerOption(
-      options.maxEntries ?? SERIALIZATION_DEFAULTS.maxEntries,
+      options.maxEntries ?? defaults.maxEntries,
       "maxEntries",
       1,
       HARD_MAX_ENTRIES,
     ),
     maxStringLength: integerOption(
-      options.maxStringLength ?? SERIALIZATION_DEFAULTS.maxStringLength,
+      options.maxStringLength ?? defaults.maxStringLength,
       "maxStringLength",
       1,
       HARD_MAX_STRING_LENGTH,

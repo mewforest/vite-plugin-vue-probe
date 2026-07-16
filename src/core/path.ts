@@ -246,9 +246,18 @@ function page(
 export function normalizeDetailedOptions(
   options: DetailedStateOptions = {},
 ): NormalizedDetailedOptions {
+  const defaultLimit = options.bypassBudgets
+    ? HARD_MAX_ENTRIES
+    : DETAIL_DEFAULTS.limit;
+  const defaultDepth = options.bypassBudgets
+    ? HARD_MAX_DEPTH
+    : DETAIL_DEFAULTS.maxDepth;
+  const defaultStringLength = options.bypassBudgets
+    ? HARD_MAX_STRING_LENGTH
+    : DETAIL_DEFAULTS.maxStringLength;
   const offset = integerOption(options.offset ?? 0, "offset", 0, HARD_MAX_OFFSET);
   const limit = integerOption(
-    options.limit ?? DETAIL_DEFAULTS.limit,
+    options.limit ?? defaultLimit,
     "limit",
     1,
     HARD_MAX_ENTRIES,
@@ -265,13 +274,13 @@ export function normalizeDetailedOptions(
       HARD_MAX_ENTRIES,
     ),
     maxDepth: integerOption(
-      options.maxDepth ?? DETAIL_DEFAULTS.maxDepth,
+      options.maxDepth ?? defaultDepth,
       "maxDepth",
       0,
       HARD_MAX_DEPTH,
     ),
     maxStringLength: integerOption(
-      options.maxStringLength ?? DETAIL_DEFAULTS.maxStringLength,
+      options.maxStringLength ?? defaultStringLength,
       "maxStringLength",
       1,
       HARD_MAX_STRING_LENGTH,
