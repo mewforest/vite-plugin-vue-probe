@@ -68,42 +68,39 @@ vueProbe({ enabled: false });
 🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.2.0)
 ```
 
-Каждый сниппет ниже **самодостаточен** — можно вставить любой отдельно. Output'ы — сокращённые эскизы для toy-приложения (подставьте свои имена):
+Каждый сниппет ниже **самодостаточен** — можно вставить любой отдельно. Имена в примерах — из toy-приложения (подставьте свои).
 
-```text
-App
- └─ UserList          // setup.rows = [ …большой массив… ]
-     └─ UserCard × N  // props.user
+<details>
+<summary>Схема toy-приложения</summary>
 
-Pinia: store id "users"  // { list: […] }
+```mermaid
+flowchart TD
+  App --> UL[UserList]
+  UL -->|"setup.rows[]"| UC["UserCard × N"]
 ```
 
-```vue
-<!-- App.vue (эскиз) -->
-<template><UserList /></template>
-
-<!-- UserList.vue -->
-<script setup>
-const rows = ref([/* много элементов */])
-</script>
-<template>
-  <UserCard v-for="u in rows" :key="u.id" :user="u" />
-</template>
-
-<!-- stores/users.js -->
-defineStore("users", () => ({ list: [] }))
+```mermaid
+flowchart LR
+  P["Pinia: users"] --> S["{ list: [] }"]
 ```
 
-Ниже — те же команды в виде цепочек `.then()`: синтаксически это единые выражения, их можно скопировать целиком и вставить в консоль одним блоком. Развёрнутые варианты с явными проверками `ok` — под спойлером.
+`UserList` держит большой `rows`; каждый элемент рендерит `UserCard`.
+
+</details>
+
+Цепочки `.then()` ниже — единые выражения: копируйте целиком в консоль. Варианты с явными проверками `ok` — под спойлером.
 
 ### 1. Проверить, что API доступен
 
 ```js
+// Проверить, что probe инжектирован
 window.VUE_PROBE?.version; // "0.2.0"
 ```
 
 <details>
-<summary>Развёрнутый пример</summary>
+<summary>Explained example</summary>
+
+Verbose-версия с явными проверками `ok`.
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -120,18 +117,22 @@ $probe.version; // "0.2.0"
 ### 2. Список активных приложений
 
 ```js
+// Таблица Vue-приложений на странице
 await window.VUE_PROBE
   .listApps()
   .then((r) => console.table(r.data));
 ```
 
 <details>
-<summary>Развёрнутый пример (capabilities + apps)</summary>
+<summary>Explained example (capabilities + apps)</summary>
+
+Verbose-версия с явными проверками `ok`.
 
 ```js
 const $probe = window.VUE_PROBE;
 if (!$probe) throw new Error("VUE_PROBE не установлен");
 
+// Что runtime умеет инспектировать
 const capabilities = await $probe.getCapabilities();
 if (!capabilities.ok) throw new Error(capabilities.error.message);
 
@@ -163,6 +164,7 @@ console.table(apps.data);
 ### 3. Дерево компонентов (плоское, до 5 уровня)
 
 ```js
+// Плоское дерево: id / name / depth
 await window.VUE_PROBE
   .getComponentTree({ format: "flat", maxDepth: 5 })
   .then((r) =>
@@ -177,12 +179,15 @@ await window.VUE_PROBE
 ```
 
 <details>
-<summary>Развёрнутый пример</summary>
+<summary>Explained example</summary>
+
+Verbose-версия с явными проверками `ok`.
 
 ```js
 const $probe = window.VUE_PROBE;
 if (!$probe) throw new Error("VUE_PROBE не установлен");
 
+// Предпочитайте flat + maxDepth вместо полного nested dump
 const tree = await $probe.getComponentTree({
   format: "flat",
   maxDepth: 3,
@@ -208,6 +213,7 @@ console.table(
 ### 4. Стейт конкретного компонента по имени (например, `UserList`)
 
 ```js
+// Найти UserList по имени и прочитать state
 await window.VUE_PROBE
   .getComponentTree({ format: "flat" })
   .then((t) =>
@@ -220,7 +226,9 @@ await window.VUE_PROBE
 ```
 
 <details>
-<summary>Развёрнутый пример</summary>
+<summary>Explained example</summary>
+
+Verbose-версия с явными проверками `ok`.
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -229,6 +237,7 @@ if (!$probe) throw new Error("VUE_PROBE не установлен");
 const tree = await $probe.getComponentTree({ format: "flat", maxDepth: 3 });
 if (!tree.ok) throw new Error(tree.error.message);
 
+// Ищем по display name; appId нужен на multi-app страницах
 const id = tree.data.nodes.find((n) => n.name === "UserList")?.id;
 if (!id) throw new Error("UserList нет в дереве");
 
@@ -261,6 +270,7 @@ console.log(state.data);
 ### 5. DOM-локаторы компонента по имени (например, `UserCard`)
 
 ```js
+// Найти UserCard по имени и вывести DOM roots
 await window.VUE_PROBE
   .getComponentTree({ format: "flat" })
   .then((t) =>
@@ -273,7 +283,9 @@ await window.VUE_PROBE
 ```
 
 <details>
-<summary>Развёрнутый пример</summary>
+<summary>Explained example</summary>
+
+Verbose-версия с явными проверками `ok`.
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -282,13 +294,13 @@ if (!$probe) throw new Error("VUE_PROBE не установлен");
 const tree = await $probe.getComponentTree({ format: "flat", maxDepth: 3 });
 if (!tree.ok) throw new Error(tree.error.message);
 
-// Один UserCard — не App (слишком широко).
+// Один UserCard — не App (слишком широко для DOM-локаторов)
 const card = tree.data.nodes.find((n) => n.name === "UserCard");
 if (!card) throw new Error("UserCard нет в дереве");
 
 const dom = await $probe.getComponentDOM(card.id, {
   appId: tree.data.appId,
-  expectedRevision: tree.meta.revision,
+  expectedRevision: tree.meta.revision, // быстро упасть, если дерево устарело
 });
 if (!dom.ok) throw new Error(dom.error.message);
 console.log(dom.data.roots);
@@ -312,7 +324,9 @@ console.log(dom.data.roots);
 ### 6. Прочитать следующую страницу большого state-значения
 
 <details>
-<summary>Развёрнутый пример</summary>
+<summary>Explained example</summary>
+
+Verbose-версия с явными проверками `ok`.
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -324,7 +338,7 @@ if (!tree.ok) throw new Error(tree.error.message);
 const id = tree.data.nodes.find((n) => n.name === "UserList")?.id;
 if (!id) throw new Error("UserList нет в дереве");
 
-// Дочитываем UserList.setup.rows, если первый read обрезал значение.
+// Дочитываем UserList.setup.rows, если первый read обрезал значение
 const page = await $probe.getDetailedState(
   { kind: "component", componentId: id, appId: tree.data.appId },
   ["setup", "rows"],
@@ -332,6 +346,7 @@ const page = await $probe.getDetailedState(
 );
 if (!page.ok) throw new Error(page.error.message);
 
+// Пока есть nextOffset — читаем следующую страницу
 if (page.data.page?.nextOffset != null) {
   const next = await $probe.getDetailedState(page.data.target, page.data.path, {
     offset: page.data.page.nextOffset,
@@ -356,6 +371,7 @@ if (page.data.page?.nextOffset != null) {
 ### 7. Стейт конкретного Pinia-стора (например, `users`)
 
 ```js
+// Активное app → state Pinia-стора "users"
 await window.VUE_PROBE
   .listApps()
   .then((a) =>
@@ -367,7 +383,9 @@ await window.VUE_PROBE
 ```
 
 <details>
-<summary>Развёрнутый пример (stores + state)</summary>
+<summary>Explained example (stores + state)</summary>
+
+Verbose-версия с явными проверками `ok`.
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -377,10 +395,11 @@ const apps = await $probe.listApps();
 if (!apps.ok) throw new Error(apps.error.message);
 const appId = apps.data.find((a) => a.active)?.id ?? apps.data[0]?.id;
 
+// По умолчанию только id сторов
 const stores = await $probe.getPiniaStores({ appId });
 if (!stores.ok) throw new Error(stores.error.message);
 
-// Опционально: ещё и ключи внутри каждого store.
+// Опционально: ещё и ключи внутри каждого store
 const storesWithKeys = await $probe.getPiniaStores({
   appId,
   includeKeys: true,

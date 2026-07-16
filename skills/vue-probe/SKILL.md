@@ -36,18 +36,17 @@ If `undefined`, the plugin is missing, disabled, or this is a production build. 
 
 ## Example app shape (abbreviated)
 
-Snippets below assume this tiny tree — replace names with the consumer app’s:
+Snippets below assume this toy tree — replace names with the consumer app’s:
 
-```text
-App → UserList (setup.rows[]) → UserCard × N (props.user)
-Pinia store "users" → { list: [] }
+```mermaid
+flowchart TD
+  App --> UL[UserList]
+  UL -->|"setup.rows[]"| UC["UserCard × N"]
 ```
 
-```vue
-<!-- sketch -->
-<template><UserList /></template>           <!-- App -->
-<!-- UserList: const rows = ref([…]); <UserCard v-for="u in rows" :user="u" /> -->
-<!-- defineStore("users", () => ({ list: [] })) -->
+```mermaid
+flowchart LR
+  P["Pinia: users"] --> S["{ list: [] }"]
 ```
 
 ## Workflow

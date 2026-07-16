@@ -68,42 +68,39 @@ With `vite serve` running and the plugin enabled, open the page → DevTools →
 🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.2.0)
 ```
 
-Each snippet below is **self-contained** — paste any one alone. Outputs are abbreviated sketches for the toy app (swap names for yours):
+Each snippet below is **self-contained** — paste any one alone. Names come from a tiny toy app (swap in yours).
 
-```text
-App
- └─ UserList          // setup.rows = [ …large array… ]
-     └─ UserCard × N  // props.user
+<details>
+<summary>Toy app shape</summary>
 
-Pinia: store id "users"  // { list: […] }
+```mermaid
+flowchart TD
+  App --> UL[UserList]
+  UL -->|"setup.rows[]"| UC["UserCard × N"]
 ```
 
-```vue
-<!-- App.vue (sketch) -->
-<template><UserList /></template>
-
-<!-- UserList.vue -->
-<script setup>
-const rows = ref([/* many items */])
-</script>
-<template>
-  <UserCard v-for="u in rows" :key="u.id" :user="u" />
-</template>
-
-<!-- stores/users.js -->
-defineStore("users", () => ({ list: [] }))
+```mermaid
+flowchart LR
+  P["Pinia: users"] --> S["{ list: [] }"]
 ```
 
-Below are the same commands as `.then()` chains: syntactically they are still single expressions you can copy and paste into the browser console as one block. Expanded variants with explicit `ok` checks are under spoilers.
+`UserList` holds a large `rows` array; each item renders a `UserCard`.
+
+</details>
+
+Pasteable `.then()` chains below are still single expressions. Variants with explicit `ok` checks are under spoilers.
 
 ### 1. Check that the API is available
 
 ```js
+// Confirm probe is injected
 window.VUE_PROBE?.version; // "0.2.0"
 ```
 
 <details>
-<summary>Expanded example</summary>
+<summary>Explained example</summary>
+
+Verbose version with explicit `ok` checks.
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -120,18 +117,22 @@ $probe.version; // "0.2.0"
 ### 2. List active applications
 
 ```js
+// Table of Vue apps on the page
 await window.VUE_PROBE
   .listApps()
   .then((r) => console.table(r.data));
 ```
 
 <details>
-<summary>Expanded example (capabilities + apps)</summary>
+<summary>Explained example (capabilities + apps)</summary>
+
+Verbose version with explicit `ok` checks.
 
 ```js
 const $probe = window.VUE_PROBE;
 if (!$probe) throw new Error("VUE_PROBE is not installed");
 
+// What the runtime can inspect
 const capabilities = await $probe.getCapabilities();
 if (!capabilities.ok) throw new Error(capabilities.error.message);
 
@@ -163,6 +164,7 @@ console.table(apps.data);
 ### 3. Component tree (flat, up to depth 5)
 
 ```js
+// Flat tree: id / name / depth
 await window.VUE_PROBE
   .getComponentTree({ format: "flat", maxDepth: 5 })
   .then((r) =>
@@ -177,12 +179,15 @@ await window.VUE_PROBE
 ```
 
 <details>
-<summary>Expanded example</summary>
+<summary>Explained example</summary>
+
+Verbose version with explicit `ok` checks.
 
 ```js
 const $probe = window.VUE_PROBE;
 if (!$probe) throw new Error("VUE_PROBE is not installed");
 
+// Prefer flat + maxDepth over dumping a nested tree
 const tree = await $probe.getComponentTree({
   format: "flat",
   maxDepth: 3,
@@ -208,6 +213,7 @@ console.table(
 ### 4. Component state by name (e.g. `UserList`)
 
 ```js
+// Resolve UserList by name, then read its state
 await window.VUE_PROBE
   .getComponentTree({ format: "flat" })
   .then((t) =>
@@ -220,7 +226,9 @@ await window.VUE_PROBE
 ```
 
 <details>
-<summary>Expanded example</summary>
+<summary>Explained example</summary>
+
+Verbose version with explicit `ok` checks.
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -229,6 +237,7 @@ if (!$probe) throw new Error("VUE_PROBE is not installed");
 const tree = await $probe.getComponentTree({ format: "flat", maxDepth: 3 });
 if (!tree.ok) throw new Error(tree.error.message);
 
+// Find by display name, then pass appId for multi-app pages
 const id = tree.data.nodes.find((n) => n.name === "UserList")?.id;
 if (!id) throw new Error("UserList not in tree");
 
@@ -261,6 +270,7 @@ console.log(state.data);
 ### 5. DOM locators for a component by name (e.g. `UserCard`)
 
 ```js
+// Resolve UserCard by name, then table its DOM roots
 await window.VUE_PROBE
   .getComponentTree({ format: "flat" })
   .then((t) =>
@@ -273,7 +283,9 @@ await window.VUE_PROBE
 ```
 
 <details>
-<summary>Expanded example</summary>
+<summary>Explained example</summary>
+
+Verbose version with explicit `ok` checks.
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -282,13 +294,13 @@ if (!$probe) throw new Error("VUE_PROBE is not installed");
 const tree = await $probe.getComponentTree({ format: "flat", maxDepth: 3 });
 if (!tree.ok) throw new Error(tree.error.message);
 
-// One UserCard — not App (too broad).
+// One UserCard — not App (too broad for DOM locators)
 const card = tree.data.nodes.find((n) => n.name === "UserCard");
 if (!card) throw new Error("UserCard not in tree");
 
 const dom = await $probe.getComponentDOM(card.id, {
   appId: tree.data.appId,
-  expectedRevision: tree.meta.revision,
+  expectedRevision: tree.meta.revision, // fail fast if tree went stale
 });
 if (!dom.ok) throw new Error(dom.error.message);
 console.log(dom.data.roots);
@@ -312,7 +324,9 @@ console.log(dom.data.roots);
 ### 6. Read the next page of a large state value
 
 <details>
-<summary>Expanded example</summary>
+<summary>Explained example</summary>
+
+Verbose version with explicit `ok` checks.
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -324,7 +338,7 @@ if (!tree.ok) throw new Error(tree.error.message);
 const id = tree.data.nodes.find((n) => n.name === "UserList")?.id;
 if (!id) throw new Error("UserList not in tree");
 
-// Page UserList.setup.rows when the first read truncated it.
+// Page UserList.setup.rows when the first read truncated it
 const page = await $probe.getDetailedState(
   { kind: "component", componentId: id, appId: tree.data.appId },
   ["setup", "rows"],
@@ -332,6 +346,7 @@ const page = await $probe.getDetailedState(
 );
 if (!page.ok) throw new Error(page.error.message);
 
+// Continue while nextOffset is present
 if (page.data.page?.nextOffset != null) {
   const next = await $probe.getDetailedState(page.data.target, page.data.path, {
     offset: page.data.page.nextOffset,
@@ -356,6 +371,7 @@ if (page.data.page?.nextOffset != null) {
 ### 7. Pinia store state by id (e.g. `users`)
 
 ```js
+// Active app → Pinia store "users" state
 await window.VUE_PROBE
   .listApps()
   .then((a) =>
@@ -367,7 +383,9 @@ await window.VUE_PROBE
 ```
 
 <details>
-<summary>Expanded example (stores + state)</summary>
+<summary>Explained example (stores + state)</summary>
+
+Verbose version with explicit `ok` checks.
 
 ```js
 const $probe = window.VUE_PROBE;
@@ -377,10 +395,11 @@ const apps = await $probe.listApps();
 if (!apps.ok) throw new Error(apps.error.message);
 const appId = apps.data.find((a) => a.active)?.id ?? apps.data[0]?.id;
 
+// IDs only by default
 const stores = await $probe.getPiniaStores({ appId });
 if (!stores.ok) throw new Error(stores.error.message);
 
-// Opt-in: also list keys inside each store.
+// Opt-in: also list keys inside each store
 const storesWithKeys = await $probe.getPiniaStores({
   appId,
   includeKeys: true,
