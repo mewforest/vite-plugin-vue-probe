@@ -1,7 +1,7 @@
 import type { ProbeAPI } from "./public-types.js";
 import type { ProbeDataSource } from "./data-source/types.js";
 import { DevtoolsDataSource } from "./data-source/devtools.js";
-import { createProbeAPI } from "./core/facade.js";
+import { createProbeAPI, PROBE_API_VERSION } from "./core/facade.js";
 
 interface OwnedInstallation {
   readonly source: ProbeDataSource;
@@ -26,6 +26,9 @@ export function installProbeAPI(
       writable: false,
     });
     installations.set(api, { source });
+    console.info(
+      `🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API ${PROBE_API_VERSION})`,
+    );
     return api;
   } catch (error) {
     if (initializationAttempted) {

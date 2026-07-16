@@ -27,6 +27,7 @@ function sourceFixture(): ProbeDataSource {
 
 describe("installProbeAPI", () => {
   it("installs a frozen, idempotent global API", () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const source = sourceFixture();
     const first = installProbeAPI(source);
     const second = installProbeAPI(source);
@@ -34,6 +35,11 @@ describe("installProbeAPI", () => {
     expect(first).toBe(window.VUE_PROBE);
     expect(Object.isFrozen(first)).toBe(true);
     expect(source.init).toHaveBeenCalledOnce();
+    expect(info).toHaveBeenCalledOnce();
+    expect(info.mock.calls[0]?.[0]).toMatch(
+      /^🔍 vite-plugin-vue-probe: window\.VUE_PROBE ready \(API /,
+    );
+    info.mockRestore();
   });
 
   it("disposes an owned installation once and supports reinstall", () => {

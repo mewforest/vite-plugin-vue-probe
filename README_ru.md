@@ -62,108 +62,247 @@ vueProbe({ enabled: false });
 
 ## Консоль DevTools
 
-При запущенном `vite serve` и включённом плагине откройте страницу → DevTools → **Console**. Выполняйте сниппеты по порядку: каждый шаг инспекции вынесен отдельно.
+При запущенном `vite serve` и включённом плагине откройте страницу → DevTools → **Console**. При инициализации в консоли появится что-то вроде:
+
+```text
+🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.2.0)
+```
+
+Каждый сниппет ниже **самодостаточен** — можно вставить любой отдельно. Output'ы — сокращённые эскизы для toy-приложения (подставьте свои имена):
+
+```text
+App
+ └─ UserList          // setup.rows = [ …большой массив… ]
+     └─ UserCard × N  // props.user
+
+Pinia: store id "users"  // { list: […] }
+```
+
+```vue
+<!-- App.vue (эскиз) -->
+<template><UserList /></template>
+
+<!-- UserList.vue -->
+<script setup>
+const rows = ref([/* много элементов */])
+</script>
+<template>
+  <UserCard v-for="u in rows" :key="u.id" :user="u" />
+</template>
+
+<!-- stores/users.js -->
+defineStore("users", () => ({ list: [] }))
+```
 
 ### 1. Проверить, что API доступен
 
 ```js
-const probe = window.VUE_PROBE;
-if (!probe) throw new Error("VUE_PROBE не установлен");
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE не установлен");
+$probe.version; // "0.2.0"
+```
+
+```js
+// → "0.2.0"
 ```
 
 ### 2. Проверить возможности и приложения
 
 ```js
-const capabilities = await probe.getCapabilities();
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE не установлен");
+
+const capabilities = await $probe.getCapabilities();
 if (!capabilities.ok) throw new Error(capabilities.error.message);
-const apps = await probe.listApps();
+
+const apps = await $probe.listApps();
 if (!apps.ok) throw new Error(apps.error.message);
 console.table(apps.data);
+```
+
+```js
+// → capabilities (сокр.)
+{
+  ok: true,
+  data: {
+    apiVersion: "0.2.0",
+    vueDetected: true,
+    piniaDetected: true,
+    componentTree: true,
+    /* … */
+  },
+  meta: { revision: 1, /* … */ },
+}
+
+// → apps.data (сокр.)
+[{ id: "app", name: "App", vueVersion: "3.5.x", active: true }]
 ```
 
 ### 3. Вывести неглубокое дерево компонентов
 
 ```js
-const tree = await probe.getComponentTree({
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE не установлен");
+
+const tree = await $probe.getComponentTree({
   format: "flat",
   maxDepth: 3,
 });
 if (!tree.ok) throw new Error(tree.error.message);
-console.table(tree.data.nodes.map((n) => ({
-  id: n.id,
-  name: n.name,
-  depth: n.depth,
-})));
+console.table(
+  tree.data.nodes.map((n) => ({ id: n.id, name: n.name, depth: n.depth })),
+);
+```
+
+```js
+// → tree.data.nodes (сокр.)
+[
+  { id: "app:1", name: "App",      depth: 0 },
+  { id: "app:2", name: "UserList", depth: 1 },
+  { id: "app:3", name: "UserCard", depth: 2 },
+  /* … */
+]
 ```
 
 ### 4. Прочитать state компонента
 
 ```js
-// Возьмите реальный id из таблицы выше.
-const id = tree.data.nodes.find((n) => n.name.includes("App"))?.id;
-if (!id) throw new Error("Компонент не найден в дереве");
-const state = await probe.getComponentState(id, { appId: tree.data.appId });
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE не установлен");
+
+const tree = await $probe.getComponentTree({ format: "flat", maxDepth: 3 });
+if (!tree.ok) throw new Error(tree.error.message);
+
+const id = tree.data.nodes.find((n) => n.name === "UserList")?.id;
+if (!id) throw new Error("UserList нет в дереве");
+
+const state = await $probe.getComponentState(id, { appId: tree.data.appId });
 if (!state.ok) throw new Error(state.error.message);
 console.log(state.data);
+```
+
+```js
+// → state.data (сокр.)
+{
+  name: "UserList",
+  state: {
+    setup: {
+      rows: {
+        $type: "truncated",
+        kind: "array",
+        total: 240,
+        returned: 25,
+        nextOffset: 25,
+        /* … */
+      },
+    },
+  },
+}
 ```
 
 ### 5. Получить DOM-локаторы одного отрисованного дочернего компонента
 
 ```js
-// DOM-локаторы нужны для конкретного отрисованного компонента, а не всего App.
-// Предпочтителен конкретный дочерний компонент; когда нужный компонент известен,
-// замените это условие на его имя или id.
-const domTarget = tree.data.nodes.find(
-  (n) =>
-    n.depth > 0 &&
-    !["Anonymous Component", "BaseTransition", "RouterView"].includes(n.name),
-);
-if (domTarget) {
-  const dom = await probe.getComponentDOM(domTarget.id, {
-    appId: tree.data.appId,
-    expectedRevision: tree.meta.revision,
-  });
-  if (dom.ok) console.log(dom.data.roots);
-  else
-    console.warn(
-      `DOM-локатор пропущен для ${domTarget.name}: ${dom.error.message}`,
-    );
-}
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE не установлен");
+
+const tree = await $probe.getComponentTree({ format: "flat", maxDepth: 3 });
+if (!tree.ok) throw new Error(tree.error.message);
+
+// Один UserCard — не App (слишком широко).
+const card = tree.data.nodes.find((n) => n.name === "UserCard");
+if (!card) throw new Error("UserCard нет в дереве");
+
+const dom = await $probe.getComponentDOM(card.id, {
+  appId: tree.data.appId,
+  expectedRevision: tree.meta.revision,
+});
+if (!dom.ok) throw new Error(dom.error.message);
+console.log(dom.data.roots);
+```
+
+```js
+// → dom.data.roots (сокр.)
+[
+  {
+    index: 0,
+    tag: "article",
+    selector: "article.user-card",
+    rect: { x: 16, y: 120, width: 320, height: 72, /* … */ },
+    connected: true,
+  },
+]
 ```
 
 ### 6. Прочитать следующую страницу большого state-значения
 
 ```js
-const page = await probe.getDetailedState(
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE не установлен");
+
+const tree = await $probe.getComponentTree({ format: "flat", maxDepth: 3 });
+if (!tree.ok) throw new Error(tree.error.message);
+
+const id = tree.data.nodes.find((n) => n.name === "UserList")?.id;
+if (!id) throw new Error("UserList нет в дереве");
+
+// Дочитываем UserList.setup.rows, если первый read обрезал значение.
+const page = await $probe.getDetailedState(
   { kind: "component", componentId: id, appId: tree.data.appId },
   ["setup", "rows"],
   { offset: 0, limit: 50, expectedRevision: tree.meta.revision },
 );
 if (!page.ok) throw new Error(page.error.message);
-const pagination = page.data.page;
-if (pagination?.nextOffset != null) {
-  const next = await probe.getDetailedState(page.data.target, page.data.path, {
-    offset: pagination.nextOffset,
-    limit: pagination.limit,
+
+if (page.data.page?.nextOffset != null) {
+  const next = await $probe.getDetailedState(page.data.target, page.data.path, {
+    offset: page.data.page.nextOffset,
+    limit: page.data.page.limit,
     expectedRevision: page.meta.revision,
   });
   if (!next.ok) throw new Error(next.error.message);
 }
 ```
 
+```js
+// → page.data (сокр.)
+{
+  path: ["setup", "rows"],
+  value: [/* 50 объектов строк */],
+  page: { offset: 0, limit: 50, returned: 50, total: 240, nextOffset: 50 },
+}
+```
+
 ### 7. Инспектировать Pinia
 
 ```js
-// По умолчанию доступны только ID; ключи запрашиваются отдельно.
-const stores = await probe.getPiniaStores({ appId: tree.data.appId });
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE не установлен");
+
+const apps = await $probe.listApps();
+if (!apps.ok) throw new Error(apps.error.message);
+const appId = apps.data.find((a) => a.active)?.id ?? apps.data[0]?.id;
+
+const stores = await $probe.getPiniaStores({ appId });
 if (!stores.ok) throw new Error(stores.error.message);
-const storesWithKeys = await probe.getPiniaStores({
-  appId: tree.data.appId,
+
+// Опционально: ещё и ключи внутри каждого store.
+const storesWithKeys = await $probe.getPiniaStores({
+  appId,
   includeKeys: true,
 });
 if (!storesWithKeys.ok) throw new Error(storesWithKeys.error.message);
-const pinia = await probe.getPiniaState("users", { appId: tree.data.appId });
+
+const pinia = await $probe.getPiniaState("users", { appId });
 if (!pinia.ok) throw new Error(pinia.error.message);
+console.log(pinia.data);
+```
+
+```js
+// → stores.data / pinia.data (сокр.)
+[{ appId: "app", id: "users" }]
+[{ appId: "app", id: "users", stateKeys: ["list"], getterKeys: [] }]
+{ storeId: "users", state: { list: [/* … */] } }
 ```
 
 `getComponentDOM()` возвращает selector относительно root узла. Для открытого

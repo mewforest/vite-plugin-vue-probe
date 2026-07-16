@@ -34,59 +34,80 @@ If `undefined`, the plugin is missing, disabled, or this is a production build. 
 - Keep the selected `appId` on state and DOM reads in multi-app pages.
 - Treat `revision` as inspector invalidation. A snapshot can become stale while it is being read.
 
+## Example app shape (abbreviated)
+
+Snippets below assume this tiny tree — replace names with the consumer app’s:
+
+```text
+App → UserList (setup.rows[]) → UserCard × N (props.user)
+Pinia store "users" → { list: [] }
+```
+
+```vue
+<!-- sketch -->
+<template><UserList /></template>           <!-- App -->
+<!-- UserList: const rows = ref([…]); <UserCard v-for="u in rows" :user="u" /> -->
+<!-- defineStore("users", () => ({ list: [] })) -->
+```
+
 ## Workflow
 
 ```js
-const probe = window.VUE_PROBE;
-if (!probe) throw new Error("VUE_PROBE missing");
-const caps = await probe.getCapabilities();
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE missing");
+const caps = await $probe.getCapabilities();
 if (!caps.ok) throw new Error(caps.error.message);
-const apps = await probe.listApps();
+const apps = await $probe.listApps();
 if (!apps.ok) throw new Error(apps.error.message);
 
-const tree = await probe.getComponentTree({
+const tree = await $probe.getComponentTree({
   format: "flat",
   maxDepth: 3,
-  filter: "User", // optional name filter
+  filter: "User", // optional: UserList / UserCard
 });
 if (!tree.ok) throw new Error(tree.error.message);
 
-const component = tree.data.nodes.find((node) => node.name === "UserCard");
-if (!component) throw new Error("No matching component");
-const id = component.id;
-const state = await probe.getComponentState(id, { appId: tree.data.appId });
+// State of the list (rows may be truncated)
+const list = tree.data.nodes.find((n) => n.name === "UserList");
+if (!list) throw new Error("UserList not in tree");
+const state = await $probe.getComponentState(list.id, {
+  appId: tree.data.appId,
+});
 if (!state.ok) throw new Error(state.error.message);
-const dom = await probe.getComponentDOM(id, {
+
+// DOM of one card — not App
+const card = tree.data.nodes.find((n) => n.name === "UserCard");
+if (!card) throw new Error("UserCard not in tree");
+const dom = await $probe.getComponentDOM(card.id, {
   appId: tree.data.appId,
   expectedRevision: tree.meta.revision,
 });
 if (!dom.ok) throw new Error(dom.error.message);
 
-// Page a truncated path
-const page = await probe.getDetailedState(
-  { kind: "component", componentId: id, appId: tree.data.appId },
+// Page UserList.setup.rows when truncated
+const page = await $probe.getDetailedState(
+  { kind: "component", componentId: list.id, appId: tree.data.appId },
   ["setup", "rows"],
   { offset: 0, limit: 50, expectedRevision: tree.meta.revision },
 );
 if (!page.ok) throw new Error(page.error.message);
-const pagination = page.data.page;
-if (pagination?.nextOffset != null) {
-  const next = await probe.getDetailedState(page.data.target, page.data.path, {
-    offset: pagination.nextOffset,
-    limit: pagination.limit,
+if (page.data.page?.nextOffset != null) {
+  const next = await $probe.getDetailedState(page.data.target, page.data.path, {
+    offset: page.data.page.nextOffset,
+    limit: page.data.page.limit,
     expectedRevision: page.meta.revision,
   });
   if (!next.ok) throw new Error(next.error.message);
 }
 
-const stores = await probe.getPiniaStores({ appId: tree.data.appId }); // IDs only
+const stores = await $probe.getPiniaStores({ appId: tree.data.appId }); // IDs only
 if (!stores.ok) throw new Error(stores.error.message);
-const storesWithKeys = await probe.getPiniaStores({
+const storesWithKeys = await $probe.getPiniaStores({
   appId: tree.data.appId,
   includeKeys: true,
 });
 if (!storesWithKeys.ok) throw new Error(storesWithKeys.error.message);
-const pinia = await probe.getPiniaState("users", { appId: tree.data.appId });
+const pinia = await $probe.getPiniaState("users", { appId: tree.data.appId });
 if (!pinia.ok) throw new Error(pinia.error.message);
 ```
 
@@ -102,9 +123,8 @@ then resolve `selector`. `selector: null` means no safe replayable locator is
 available (detached node, ambiguous path, or closed shadow root).
 
 `getComponentDOM()` is limited to 200 DOM roots. Use it for a specific rendered
-component (for example, the filtered `UserCard` above), not the root application
-component. If it returns `INTERNAL_ERROR` about that limit, narrow the tree
-filter or choose a more specific child component.
+component (e.g. `UserCard`), not root `App`. If it returns `INTERNAL_ERROR`
+about that limit, narrow the tree filter or pick a more specific child.
 
 ## From Playwright / browser tools
 

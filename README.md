@@ -62,108 +62,247 @@ vueProbe({ enabled: false });
 
 ## DevTools console
 
-With `vite serve` running and the plugin enabled, open the page → DevTools → **Console**. Run the snippets in order; each inspection step is intentionally separate.
+With `vite serve` running and the plugin enabled, open the page → DevTools → **Console**. On load you should see something like:
+
+```text
+🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.2.0)
+```
+
+Each snippet below is **self-contained** — paste any one alone. Outputs are abbreviated sketches for the toy app (swap names for yours):
+
+```text
+App
+ └─ UserList          // setup.rows = [ …large array… ]
+     └─ UserCard × N  // props.user
+
+Pinia: store id "users"  // { list: […] }
+```
+
+```vue
+<!-- App.vue (sketch) -->
+<template><UserList /></template>
+
+<!-- UserList.vue -->
+<script setup>
+const rows = ref([/* many items */])
+</script>
+<template>
+  <UserCard v-for="u in rows" :key="u.id" :user="u" />
+</template>
+
+<!-- stores/users.js -->
+defineStore("users", () => ({ list: [] }))
+```
 
 ### 1. Check that the API is available
 
 ```js
-const probe = window.VUE_PROBE;
-if (!probe) throw new Error("VUE_PROBE is not installed");
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE is not installed");
+$probe.version; // "0.2.0"
+```
+
+```js
+// → "0.2.0"
 ```
 
 ### 2. Check capabilities and applications
 
 ```js
-const capabilities = await probe.getCapabilities();
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE is not installed");
+
+const capabilities = await $probe.getCapabilities();
 if (!capabilities.ok) throw new Error(capabilities.error.message);
-const apps = await probe.listApps();
+
+const apps = await $probe.listApps();
 if (!apps.ok) throw new Error(apps.error.message);
 console.table(apps.data);
+```
+
+```js
+// → capabilities (abbrev.)
+{
+  ok: true,
+  data: {
+    apiVersion: "0.2.0",
+    vueDetected: true,
+    piniaDetected: true,
+    componentTree: true,
+    /* … */
+  },
+  meta: { revision: 1, /* … */ },
+}
+
+// → apps.data (abbrev.)
+[{ id: "app", name: "App", vueVersion: "3.5.x", active: true }]
 ```
 
 ### 3. Print a shallow component tree
 
 ```js
-const tree = await probe.getComponentTree({
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE is not installed");
+
+const tree = await $probe.getComponentTree({
   format: "flat",
   maxDepth: 3,
 });
 if (!tree.ok) throw new Error(tree.error.message);
-console.table(tree.data.nodes.map((n) => ({
-  id: n.id,
-  name: n.name,
-  depth: n.depth,
-})));
+console.table(
+  tree.data.nodes.map((n) => ({ id: n.id, name: n.name, depth: n.depth })),
+);
+```
+
+```js
+// → tree.data.nodes (abbrev.)
+[
+  { id: "app:1", name: "App",      depth: 0 },
+  { id: "app:2", name: "UserList", depth: 1 },
+  { id: "app:3", name: "UserCard", depth: 2 },
+  /* … */
+]
 ```
 
 ### 4. Read component state
 
 ```js
-// Pick a real id from the table above.
-const id = tree.data.nodes.find((n) => n.name.includes("App"))?.id;
-if (!id) throw new Error("Component not found in the returned tree");
-const state = await probe.getComponentState(id, { appId: tree.data.appId });
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE is not installed");
+
+const tree = await $probe.getComponentTree({ format: "flat", maxDepth: 3 });
+if (!tree.ok) throw new Error(tree.error.message);
+
+const id = tree.data.nodes.find((n) => n.name === "UserList")?.id;
+if (!id) throw new Error("UserList not in tree");
+
+const state = await $probe.getComponentState(id, { appId: tree.data.appId });
 if (!state.ok) throw new Error(state.error.message);
 console.log(state.data);
+```
+
+```js
+// → state.data (abbrev.)
+{
+  name: "UserList",
+  state: {
+    setup: {
+      rows: {
+        $type: "truncated",
+        kind: "array",
+        total: 240,
+        returned: 25,
+        nextOffset: 25,
+        /* … */
+      },
+    },
+  },
+}
 ```
 
 ### 5. Get DOM locators for one rendered child
 
 ```js
-// DOM locators are for a specific rendered component, not the whole App.
-// Prefer a concrete, non-structural child; replace this predicate when you
-// know the component you need to locate.
-const domTarget = tree.data.nodes.find(
-  (n) =>
-    n.depth > 0 &&
-    !["Anonymous Component", "BaseTransition", "RouterView"].includes(n.name),
-);
-if (domTarget) {
-  const dom = await probe.getComponentDOM(domTarget.id, {
-    appId: tree.data.appId,
-    expectedRevision: tree.meta.revision,
-  });
-  if (dom.ok) console.log(dom.data.roots);
-  else
-    console.warn(
-      `DOM locator skipped for ${domTarget.name}: ${dom.error.message}`,
-    );
-}
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE is not installed");
+
+const tree = await $probe.getComponentTree({ format: "flat", maxDepth: 3 });
+if (!tree.ok) throw new Error(tree.error.message);
+
+// One UserCard — not App (too broad).
+const card = tree.data.nodes.find((n) => n.name === "UserCard");
+if (!card) throw new Error("UserCard not in tree");
+
+const dom = await $probe.getComponentDOM(card.id, {
+  appId: tree.data.appId,
+  expectedRevision: tree.meta.revision,
+});
+if (!dom.ok) throw new Error(dom.error.message);
+console.log(dom.data.roots);
+```
+
+```js
+// → dom.data.roots (abbrev.)
+[
+  {
+    index: 0,
+    tag: "article",
+    selector: "article.user-card",
+    rect: { x: 16, y: 120, width: 320, height: 72, /* … */ },
+    connected: true,
+  },
+]
 ```
 
 ### 6. Read the next page of a large state value
 
 ```js
-const page = await probe.getDetailedState(
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE is not installed");
+
+const tree = await $probe.getComponentTree({ format: "flat", maxDepth: 3 });
+if (!tree.ok) throw new Error(tree.error.message);
+
+const id = tree.data.nodes.find((n) => n.name === "UserList")?.id;
+if (!id) throw new Error("UserList not in tree");
+
+// Page UserList.setup.rows when the first read truncated it.
+const page = await $probe.getDetailedState(
   { kind: "component", componentId: id, appId: tree.data.appId },
   ["setup", "rows"],
   { offset: 0, limit: 50, expectedRevision: tree.meta.revision },
 );
 if (!page.ok) throw new Error(page.error.message);
-const pagination = page.data.page;
-if (pagination?.nextOffset != null) {
-  const next = await probe.getDetailedState(page.data.target, page.data.path, {
-    offset: pagination.nextOffset,
-    limit: pagination.limit,
+
+if (page.data.page?.nextOffset != null) {
+  const next = await $probe.getDetailedState(page.data.target, page.data.path, {
+    offset: page.data.page.nextOffset,
+    limit: page.data.page.limit,
     expectedRevision: page.meta.revision,
   });
   if (!next.ok) throw new Error(next.error.message);
 }
 ```
 
+```js
+// → page.data (abbrev.)
+{
+  path: ["setup", "rows"],
+  value: [/* 50 row objects */],
+  page: { offset: 0, limit: 50, returned: 50, total: 240, nextOffset: 50 },
+}
+```
+
 ### 7. Inspect Pinia
 
 ```js
-// IDs only by default; keys are opt-in.
-const stores = await probe.getPiniaStores({ appId: tree.data.appId });
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE is not installed");
+
+const apps = await $probe.listApps();
+if (!apps.ok) throw new Error(apps.error.message);
+const appId = apps.data.find((a) => a.active)?.id ?? apps.data[0]?.id;
+
+const stores = await $probe.getPiniaStores({ appId });
 if (!stores.ok) throw new Error(stores.error.message);
-const storesWithKeys = await probe.getPiniaStores({
-  appId: tree.data.appId,
+
+// Opt-in: also list keys inside each store.
+const storesWithKeys = await $probe.getPiniaStores({
+  appId,
   includeKeys: true,
 });
 if (!storesWithKeys.ok) throw new Error(storesWithKeys.error.message);
-const pinia = await probe.getPiniaState("users", { appId: tree.data.appId });
+
+const pinia = await $probe.getPiniaState("users", { appId });
 if (!pinia.ok) throw new Error(pinia.error.message);
+console.log(pinia.data);
+```
+
+```js
+// → stores.data / pinia.data (abbrev.)
+[{ appId: "app", id: "users" }]
+[{ appId: "app", id: "users", stateKeys: ["list"], getterKeys: [] }]
+{ storeId: "users", state: { list: [/* … */] } }
 ```
 
 `getComponentDOM()` returns a selector relative to the node's root. For an
@@ -260,7 +399,7 @@ Playwright probes, or when you mention `VUE_PROBE` / `vite-plugin-vue-probe`.
 - Vue 3 + Vite dev server only — no production API surface
 - Pinia works when the app registers its custom inspector
 - Fragment/Suspense/Teleport/KeepAlive root extraction is structural and bounded; it depends on the Vue DevTools VNode shapes available at runtime
-- Runtime tests pin `vue@3.5.22` and `pinia@3.0.3`: they mount Fragment, Suspense, Teleport, KeepAlive, two apps, and option/setup stores. The real DevTools browser hook remains the consumer-application integration boundary
+- Runtime tests pin `vue@3.5.22`, `pinia@3.0.3` and `vite@^8.0.0`: they mount Fragment, Suspense, Teleport, KeepAlive, two apps, and option/setup stores. The real DevTools browser hook remains the consumer-application integration boundary
 - Event timeline, subscriptions, state mutation, and action calls are out of scope for v1
 - Intended for trusted local development — runtime state may contain secrets
 
