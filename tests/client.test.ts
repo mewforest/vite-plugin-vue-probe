@@ -21,6 +21,7 @@ function sourceFixture(): ProbeDataSource {
     getComponentState: vi.fn(),
     getPiniaStores: vi.fn(),
     getPiniaState: vi.fn(),
+    getComponentFromElement: vi.fn(),
     getComponentRoots: vi.fn(),
   } as unknown as ProbeDataSource;
 }

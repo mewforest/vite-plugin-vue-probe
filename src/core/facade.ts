@@ -23,7 +23,7 @@ import type {
   RawStateMap,
 } from "../data-source/types.js";
 import { DataSourceError } from "../data-source/types.js";
-import { createDOMLocators } from "./dom.js";
+import { createDOMLocators, resolveDOMElement } from "./dom.js";
 import { probeFormatters } from "./formatters.js";
 import {
   ProbePathError,
@@ -56,6 +56,7 @@ import {
   SERIALIZATION_DEFAULTS,
 } from "./contract.js";
 import {
+  validateComponentFromDOM,
   validateComponentDOM,
   validateComponentTreeOptions,
   validateDetailedState,
@@ -63,7 +64,7 @@ import {
   validateStateRead,
 } from "./validation.js";
 
-export const PROBE_API_VERSION = "0.3.0";
+export const PROBE_API_VERSION = "0.4.0";
 
 const CAPABILITY_DEFAULTS = Object.freeze({
   maxDepth: SERIALIZATION_DEFAULTS.maxDepth,
@@ -93,6 +94,7 @@ const CAPABILITIES: ProbeCapabilities = Object.freeze({
   detailedState: true,
   piniaState: false,
   componentDOM: true,
+  componentFromDOM: true,
   stateMutation: false,
   eventTimeline: false,
   defaults: CAPABILITY_DEFAULTS,
@@ -779,6 +781,24 @@ export function createProbeAPI(source: ProbeDataSource): ProbeAPI {
                   source.getComponentRoots(id, componentId),
                 ),
               };
+              verifyUnchanged();
+              return result;
+            },
+          ),
+      ),
+    getComponentFromDOM: (unsafeTarget, unsafeOptions = {}) =>
+      validateAndRun(
+        () => validateComponentFromDOM(unsafeTarget, unsafeOptions),
+        ({ target, options }) =>
+          runSnapshotForApp(
+            options.appId,
+            options.expectedRevision,
+            (id, verifyUnchanged) => {
+              const identity = source.getComponentFromElement(
+                id,
+                resolveDOMElement(target),
+              );
+              const result = { appId: id, ...identity };
               verifyUnchanged();
               return result;
             },

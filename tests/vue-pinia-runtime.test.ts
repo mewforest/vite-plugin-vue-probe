@@ -362,6 +362,10 @@ function runtimeSource(
     }),
     getPiniaStores: async () => [],
     getPiniaState: async (appId, storeId) => ({ appId, storeId, state: {} }),
+    getComponentFromElement: () => ({
+      componentId: "root",
+      name: "RuntimeRoot",
+    }),
     getComponentRoots: () => [],
     ...overrides,
   };

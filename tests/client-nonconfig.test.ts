@@ -17,6 +17,7 @@ describe("uninstallProbeAPI non-configurable ownership", () => {
       getComponentState: vi.fn(),
       getPiniaStores: vi.fn(),
       getPiniaState: vi.fn(),
+      getComponentFromElement: vi.fn(),
       getComponentRoots: vi.fn(),
     } as unknown as ProbeDataSource;
     const api = installProbeAPI(source)!;

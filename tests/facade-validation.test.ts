@@ -30,6 +30,10 @@ function sourceFixture(): ProbeDataSource {
       storeId: "store",
       state: {},
     })),
+    getComponentFromElement: vi.fn(() => ({
+      componentId: "app:component",
+      name: "Component",
+    })),
     getComponentRoots: vi.fn(() => []),
   };
 }
@@ -168,6 +172,28 @@ describe("Probe API runtime validation", () => {
       "DOM null options",
       (api: RuntimeProbeAPI) => api.getComponentDOM("component", null),
     ],
+    [
+      "DOM lookup empty selector",
+      (api: RuntimeProbeAPI) => api.getComponentFromDOM("", {}),
+    ],
+    [
+      "DOM lookup invalid target",
+      (api: RuntimeProbeAPI) => api.getComponentFromDOM({}, {}),
+    ],
+    [
+      "DOM lookup spoofed element",
+      (api: RuntimeProbeAPI) =>
+        api.getComponentFromDOM({ nodeType: 1, tagName: "DIV" }, {}),
+    ],
+    [
+      "DOM lookup expected revision",
+      (api: RuntimeProbeAPI) =>
+        api.getComponentFromDOM("#card", { expectedRevision: 1.5 }),
+    ],
+    [
+      "DOM lookup null options",
+      (api: RuntimeProbeAPI) => api.getComponentFromDOM("#card", null),
+    ],
   ])("rejects %s before reading the data source", async (_name, invoke) => {
     const source = sourceFixture();
     const api = createProbeAPI(source) as RuntimeProbeAPI;
@@ -183,6 +209,7 @@ describe("Probe API runtime validation", () => {
     expect(source.getComponentState).not.toHaveBeenCalled();
     expect(source.getPiniaStores).not.toHaveBeenCalled();
     expect(source.getPiniaState).not.toHaveBeenCalled();
+    expect(source.getComponentFromElement).not.toHaveBeenCalled();
     expect(source.getComponentRoots).not.toHaveBeenCalled();
   });
 

@@ -152,6 +152,10 @@ function sourceFixture(
       state: { users: [1, 2, 3] },
       getters: { count: 3 },
     }),
+    getComponentFromElement: () => ({
+      componentId: "component",
+      name: "Component",
+    }),
     getComponentRoots: () => [],
     ...overrides,
   };
@@ -161,7 +165,7 @@ describe("Probe API facade", () => {
   it("returns capabilities, app list, and flat depth-limited trees", async () => {
     const api = createProbeAPI(sourceFixture());
     const capabilities = await api.getCapabilities();
-    expect(api.version).toBe("0.3.0");
+    expect(api.version).toBe("0.4.0");
     expect(Object.keys(api.formatters).sort()).toEqual([
       "domToTable",
       "stateToPaths",
@@ -173,7 +177,8 @@ describe("Probe API facade", () => {
     expect(capabilities).toMatchObject({
       ok: true,
       data: {
-        apiVersion: "0.3.0",
+        apiVersion: "0.4.0",
+        componentFromDOM: true,
         vueDetected: true,
         piniaDetected: true,
         defaults: {

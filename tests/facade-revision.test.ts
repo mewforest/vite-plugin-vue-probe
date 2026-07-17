@@ -37,6 +37,10 @@ function revisionSource(
       await read(incrementRevision);
       return { appId: "app", storeId: "users", state: { count: 1 } };
     },
+    getComponentFromElement: () => ({
+      componentId: "component",
+      name: "Component",
+    }),
     getComponentRoots: () => [],
   };
 }

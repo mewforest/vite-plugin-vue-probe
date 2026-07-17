@@ -64,6 +64,11 @@ export interface RawComponentTreeResult {
   nodes: ComponentTreeNode[];
 }
 
+export interface RawComponentIdentity {
+  componentId: string;
+  name: string;
+}
+
 export interface ProbeDataSource {
   init(): void;
   dispose?(): void;
@@ -87,6 +92,10 @@ export interface ProbeDataSource {
     includeKeys?: boolean,
   ): Promise<PiniaStoreSummary[]>;
   getPiniaState(appId: string, storeId: string): Promise<RawPiniaState>;
+  getComponentFromElement(
+    appId: string,
+    element: Element,
+  ): RawComponentIdentity;
   getComponentRoots(appId: string, componentId: string): Element[];
 }
 

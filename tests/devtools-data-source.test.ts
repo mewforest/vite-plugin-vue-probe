@@ -9,6 +9,7 @@ import {
   DevtoolsDataSource,
   type DevtoolsBridge,
 } from "../src/data-source/devtools";
+import * as devtoolsDataSource from "../src/data-source/devtools";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -59,6 +60,9 @@ function bridgeFixture() {
               getters: [{ key: "count", value: 0 }],
             },
     ),
+    getComponentFromElement: vi.fn(
+      (): { componentId: string; name: string } | undefined => undefined,
+    ),
     getComponentRoots: vi.fn((): Element[] | undefined => []),
     onRevision: (callback: (appId?: string) => void) => {
       revisions.add(callback);
@@ -91,6 +95,113 @@ function bridgeFixture() {
 }
 
 describe("DevtoolsDataSource", () => {
+  it("finds an element owner only in the selected app instance map", () => {
+    const findComponentIdentity = Reflect.get(
+      devtoolsDataSource,
+      "findComponentIdentity",
+    );
+    expect(findComponentIdentity).toBeTypeOf("function");
+    const instance = { type: { name: "UserCard" } };
+    const element = Object.defineProperty({}, "__vueParentComponent", {
+      value: instance,
+    }) as Element;
+    const appA = {
+      id: "app-a",
+      name: "A",
+      instanceMap: new Map([["app-a:1", instance]]),
+    };
+    const appB = {
+      id: "app-b",
+      name: "B",
+      instanceMap: new Map<string, unknown>(),
+    };
+
+    expect(findComponentIdentity(appA, element)).toEqual({
+      componentId: "app-a:1",
+      name: "UserCard",
+    });
+    expect(findComponentIdentity(appB, element)).toBeUndefined();
+  });
+
+  it.each([
+    ["anonymous", { type: {} }, "Anonymous Component"],
+    [
+      "root",
+      (() => {
+        const root: Record<string, unknown> = { type: {} };
+        root.root = root;
+        return root;
+      })(),
+      "Root",
+    ],
+  ])("uses the %s component name fallback", (_label, instance, name) => {
+    const findComponentIdentity = Reflect.get(
+      devtoolsDataSource,
+      "findComponentIdentity",
+    );
+    const element = Object.defineProperty({}, "__vueParentComponent", {
+      value: instance,
+    }) as Element;
+
+    expect(
+      findComponentIdentity(
+        {
+          id: "app-a",
+          name: "A",
+          instanceMap: new Map([["app-a:1", instance]]),
+        },
+        element,
+      ),
+    ).toEqual({ componentId: "app-a:1", name });
+  });
+
+  it("contains hostile Vue owner access", () => {
+    const findComponentIdentity = Reflect.get(
+      devtoolsDataSource,
+      "findComponentIdentity",
+    );
+    const element = Object.defineProperty({}, "__vueParentComponent", {
+      get() {
+        throw new Error("blocked");
+      },
+    }) as Element;
+
+    expect(
+      findComponentIdentity(
+        { id: "app-a", name: "A", instanceMap: new Map() },
+        element,
+      ),
+    ).toBeUndefined();
+  });
+
+  it("returns the Vue owner identity for the selected app", () => {
+    const fixture = bridgeFixture();
+    const element = {} as Element;
+    vi.mocked(fixture.bridge.getComponentFromElement).mockReturnValueOnce({
+      componentId: "b:2",
+      name: "UserCard",
+    });
+    const source = new DevtoolsDataSource(fixture.bridge);
+
+    expect(source.getComponentFromElement("b", element)).toEqual({
+      componentId: "b:2",
+      name: "UserCard",
+    });
+    expect(fixture.bridge.getComponentFromElement).toHaveBeenCalledWith(
+      "b",
+      element,
+    );
+  });
+
+  it("reports an element without an owner in the selected app", () => {
+    const fixture = bridgeFixture();
+    const source = new DevtoolsDataSource(fixture.bridge);
+
+    expect(() => source.getComponentFromElement("a", {} as Element)).toThrowError(
+      expect.objectContaining({ code: "COMPONENT_NOT_FOUND" }),
+    );
+  });
+
   it("disables devtools high-performance mode during kit bridge initialization", () => {
     const initialHighPerfMode = devtoolsState.highPerfModeEnabled;
     toggleHighPerfMode(true);

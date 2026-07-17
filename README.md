@@ -4,11 +4,11 @@
 
 Dev-only Vite plugin that exposes a read-only `window.VUE_PROBE` for precise Vue 3 runtime inspection — useful for AI agents, Playwright/Cypress scripts, custom tooling, and local debugging.
 
-Built on Vue DevTools v8 (`@vue/devtools-kit`). Provides the component tree, component state, Pinia stores, lazy path-based reads, and component → DOM locators.
+Built on Vue DevTools v8 (`@vue/devtools-kit`). Provides the component tree, component state, Pinia stores, lazy path-based reads, component → DOM locators, and DOM → component lookup.
 
 > **Status:** proof of concept. The API never ships in production builds, never mutates state, and never invokes actions.
 
-The current public contract is **API 0.3.0**.
+The current public contract is **API 0.4.0**.
 
 ---
 
@@ -23,6 +23,7 @@ The current public contract is **API 0.3.0**.
 | Budget bypass   | Opt into hard-bounded deep state reads on explicit human request           |
 | Text formatters | Compact paths, Markdown, DOM tables, Mermaid, and clean JSON               |
 | DOM locators    | JSON selectors / rects for a component’s root elements                    |
+| DOM lookup      | Resolve a selector or Element to its nearest owning Vue component          |
 | Safe envelope   | Every call returns `ProbeResult<T>` — success or structured error         |
 
 ---
@@ -67,7 +68,7 @@ vueProbe({ enabled: false });
 With `vite serve` running and the plugin enabled, open the page → DevTools → **Console**. On load you should see something like:
 
 ```text
-🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.3.0)
+🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.4.0)
 ```
 
 Each snippet below is **self-contained** — paste any one alone. Names come from a tiny toy app (swap in yours).
@@ -96,7 +97,7 @@ Pasteable `.then()` chains below are still single expressions. Variants with exp
 
 ```js
 // Confirm probe is injected
-window.VUE_PROBE?.version; // "0.3.0"
+window.VUE_PROBE?.version; // "0.4.0"
 ```
 
 <details>
@@ -107,11 +108,11 @@ Verbose version with explicit `ok` checks.
 ```js
 const $probe = window.VUE_PROBE;
 if (!$probe) throw new Error("VUE_PROBE is not installed");
-$probe.version; // "0.3.0"
+$probe.version; // "0.4.0"
 ```
 
 ```js
-// → "0.3.0"
+// → "0.4.0"
 ```
 
 </details>
@@ -148,10 +149,11 @@ console.table(apps.data);
 {
   ok: true,
   data: {
-    apiVersion: "0.3.0",
+    apiVersion: "0.4.0",
     vueDetected: true,
     piniaDetected: true,
     componentTree: true,
+    componentFromDOM: true,
     /* … */
   },
   meta: { revision: 1, /* … */ },
@@ -306,7 +308,31 @@ console.log(selector && document.querySelector(selector));
 
 </details>
 
-### 6. Read the next page of a large state value
+### 6. Resolve a component from DOM
+
+```js
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE is not installed");
+
+// Both forms resolve the nearest Vue component that owns the DOM node.
+const bySelector = await $probe.getComponentFromDOM("#user-card");
+const element = document.querySelector("#user-card");
+const byElement = element
+  ? await $probe.getComponentFromDOM(element)
+  : null;
+
+if (!bySelector.ok) throw new Error(bySelector.error.message);
+const state = await $probe.getComponentState(bySelector.data.componentId, {
+  appId: bySelector.data.appId,
+});
+if (!state.ok) throw new Error(state.error.message);
+console.log($probe.formatters.toMarkdown(state.data.state));
+console.log(byElement);
+```
+
+CSS selectors use the first match returned by `document.querySelector`. The result is JSON-safe (`appId`, `componentId`, and `name`); the raw Vue instance is never exposed. Missing DOM nodes or Vue owners return the standard failure envelope.
+
+### 7. Read the next page of a large state value
 
 ```js
 // Page UserList.setup.rows, then follow nextOffset if truncated
@@ -385,7 +411,7 @@ if (page.data.page?.nextOffset != null) {
 
 </details>
 
-### 7. Pinia store state by id (e.g. `users`)
+### 8. Pinia store state by id (e.g. `users`)
 
 ```js
 // Active app → Pinia store "users" state

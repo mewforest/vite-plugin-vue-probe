@@ -1,4 +1,5 @@
 import type {
+  ComponentFromDOMOptions,
   ComponentDOMOptions,
   ComponentTreeOptions,
   DetailedStateOptions,
@@ -104,6 +105,27 @@ function optionalRevision(value: unknown): number | undefined {
   if (!Number.isSafeInteger(value) || (value as number) < 0)
     return invalid("expectedRevision must be a non-negative safe integer");
   return value as number;
+}
+
+function isElementTarget(value: unknown): value is Element {
+  try {
+    if (typeof value !== "object" || value === null) return false;
+    const ownerDocument = Reflect.get(value, "ownerDocument");
+    const defaultView =
+      ownerDocument && typeof ownerDocument === "object"
+        ? Reflect.get(ownerDocument, "defaultView")
+        : undefined;
+    const realmElement =
+      defaultView &&
+      (typeof defaultView === "object" || typeof defaultView === "function")
+        ? Reflect.get(defaultView, "Element")
+        : undefined;
+    if (typeof realmElement === "function" && value instanceof realmElement)
+      return true;
+    return typeof Element === "function" && value instanceof Element;
+  } catch {
+    return false;
+  }
 }
 
 function validateSerializationRecord(record: SafeRecord): void {
@@ -251,5 +273,31 @@ export function validateComponentDOM(
   return {
     componentId: requiredId(componentId, "componentId"),
     options: record as unknown as ComponentDOMOptions,
+  };
+}
+
+export function validateComponentFromDOM(
+  target: unknown,
+  value: unknown,
+): { target: string | Element; options: ComponentFromDOMOptions } {
+  const record = copyPlainRecord(value, "options", [
+    "appId",
+    "expectedRevision",
+  ]);
+  optionalId(record.appId, "appId");
+  optionalRevision(record.expectedRevision);
+  if (typeof target === "string") {
+    if (target.trim().length === 0)
+      return invalid("target selector must be non-empty");
+    return {
+      target,
+      options: record as unknown as ComponentFromDOMOptions,
+    };
+  }
+  if (!isElementTarget(target))
+    return invalid("target must be a CSS selector or Element");
+  return {
+    target,
+    options: record as unknown as ComponentFromDOMOptions,
   };
 }

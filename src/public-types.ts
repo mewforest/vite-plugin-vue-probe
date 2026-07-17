@@ -123,6 +123,7 @@ export interface ProbeCapabilities {
   detailedState: true;
   piniaState: boolean;
   componentDOM: true;
+  componentFromDOM: true;
   stateMutation: false;
   eventTimeline: false;
   defaults: {
@@ -320,6 +321,17 @@ export interface ComponentDOMOptions {
   expectedRevision?: number;
 }
 
+export interface ComponentFromDOMResult {
+  appId: string;
+  componentId: string;
+  name: string;
+}
+
+export interface ComponentFromDOMOptions {
+  appId?: string;
+  expectedRevision?: number;
+}
+
 export interface ProbeFormatters {
   stateToPaths(
     stateData: ComponentStateResult["state"] | PiniaStateResult["state"],
@@ -363,6 +375,10 @@ export interface ProbeAPI {
     componentId: string,
     options?: ComponentDOMOptions,
   ): Promise<ProbeResult<ComponentDOMResult>>;
+  getComponentFromDOM(
+    target: string | Element,
+    options?: ComponentFromDOMOptions,
+  ): Promise<ProbeResult<ComponentFromDOMResult>>;
 }
 
 declare global {

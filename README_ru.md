@@ -4,11 +4,11 @@
 
 Dev-only Vite-плагин, который публикует read-only `window.VUE_PROBE` для точной инспекции Vue 3 в runtime — для ИИ-агентов, Playwright/Cypress, кастомного tooling и локальной отладки.
 
-PoC опирается на Vue DevTools v8 (`@vue/devtools-kit`) и даёт дерево компонентов, component state, Pinia, ленивое path-based чтение и component → DOM locators.
+PoC опирается на Vue DevTools v8 (`@vue/devtools-kit`) и даёт дерево компонентов, component state, Pinia, ленивое path-based чтение, component → DOM locators и DOM → component lookup.
 
 > **Статус:** proof of concept. API намеренно не попадает в production build, не изменяет state и не вызывает actions.
 
-Текущая версия публичного контракта — **API 0.3.0**.
+Текущая версия публичного контракта — **API 0.4.0**.
 
 ---
 
@@ -23,6 +23,7 @@ PoC опирается на Vue DevTools v8 (`@vue/devtools-kit`) и даёт д
 | Budget bypass        | Глубокое чтение до hard limits только по явному запросу человека       |
 | Текстовые форматтеры | Компактные paths, Markdown, DOM-таблицы, Mermaid и чистый JSON          |
 | DOM-локаторы         | JSON selectors / rects для корневых элементов компонента               |
+| DOM lookup           | Поиск ближайшего Vue-компонента-владельца по selector или Element      |
 | Безопасный ответ     | Каждый вызов — `ProbeResult<T>`: успех или структурированная ошибка    |
 
 ---
@@ -67,7 +68,7 @@ vueProbe({ enabled: false });
 При запущенном `vite serve` и включённом плагине откройте страницу → DevTools → **Console**. При инициализации в консоли появится что-то вроде:
 
 ```text
-🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.3.0)
+🔍 vite-plugin-vue-probe: window.VUE_PROBE ready (API 0.4.0)
 ```
 
 Каждый сниппет ниже **самодостаточен** — можно вставить любой отдельно. Имена в примерах — из toy-приложения (подставьте свои).
@@ -96,7 +97,7 @@ flowchart LR
 
 ```js
 // Проверить, что probe инжектирован
-window.VUE_PROBE?.version; // "0.3.0"
+window.VUE_PROBE?.version; // "0.4.0"
 ```
 
 <details>
@@ -107,11 +108,11 @@ Verbose-версия с явными проверками `ok`.
 ```js
 const $probe = window.VUE_PROBE;
 if (!$probe) throw new Error("VUE_PROBE не установлен");
-$probe.version; // "0.3.0"
+$probe.version; // "0.4.0"
 ```
 
 ```js
-// → "0.3.0"
+// → "0.4.0"
 ```
 
 </details>
@@ -148,10 +149,11 @@ console.table(apps.data);
 {
   ok: true,
   data: {
-    apiVersion: "0.3.0",
+    apiVersion: "0.4.0",
     vueDetected: true,
     piniaDetected: true,
     componentTree: true,
+    componentFromDOM: true,
     /* … */
   },
   meta: { revision: 1, /* … */ },
@@ -306,7 +308,31 @@ console.log(selector && document.querySelector(selector));
 
 </details>
 
-### 6. Прочитать следующую страницу большого state-значения
+### 6. Получить компонент из DOM
+
+```js
+const $probe = window.VUE_PROBE;
+if (!$probe) throw new Error("VUE_PROBE не установлен");
+
+// Обе формы возвращают ближайший Vue-компонент, владеющий DOM-узлом.
+const bySelector = await $probe.getComponentFromDOM("#user-card");
+const element = document.querySelector("#user-card");
+const byElement = element
+  ? await $probe.getComponentFromDOM(element)
+  : null;
+
+if (!bySelector.ok) throw new Error(bySelector.error.message);
+const state = await $probe.getComponentState(bySelector.data.componentId, {
+  appId: bySelector.data.appId,
+});
+if (!state.ok) throw new Error(state.error.message);
+console.log($probe.formatters.toMarkdown(state.data.state));
+console.log(byElement);
+```
+
+CSS selector использует первое совпадение `document.querySelector`. Результат JSON-safe (`appId`, `componentId` и `name`); сырой Vue instance наружу не возвращается. Для отсутствующего DOM-узла или Vue-владельца метод возвращает стандартный failure envelope.
+
+### 7. Прочитать следующую страницу большого state-значения
 
 ```js
 // Страница UserList.setup.rows, затем nextOffset если обрезано
@@ -385,7 +411,7 @@ if (page.data.page?.nextOffset != null) {
 
 </details>
 
-### 7. Стейт конкретного Pinia-стора (например, `users`)
+### 8. Стейт конкретного Pinia-стора (например, `users`)
 
 ```js
 // Активное app → state Pinia-стора "users"

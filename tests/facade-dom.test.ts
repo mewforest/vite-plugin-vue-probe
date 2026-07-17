@@ -18,11 +18,45 @@ function sourceFixture(): ProbeDataSource {
     getComponentState: vi.fn(),
     getPiniaStores: vi.fn(),
     getPiniaState: vi.fn(),
+    getComponentFromElement: vi.fn(() => ({
+      componentId: "app-a:1",
+      name: "UserCard",
+    })),
     getComponentRoots: vi.fn(() => []),
   } as unknown as ProbeDataSource;
 }
 
 describe("component DOM snapshots", () => {
+  it.each([
+    ["selector", () => "#user-card"],
+    ["Element", () => document.querySelector("#user-card")!],
+  ])("resolves a component from a %s", async (_label, target) => {
+    const element = document.createElement("article");
+    element.id = "user-card";
+    document.body.replaceChildren(element);
+    const source = sourceFixture();
+    const api = createProbeAPI(source);
+
+    await expect(
+      api.getComponentFromDOM(target(), {
+        appId: "app-a",
+        expectedRevision: 7,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        appId: "app-a",
+        componentId: "app-a:1",
+        name: "UserCard",
+      },
+      meta: { revision: 7 },
+    });
+    expect(source.getComponentFromElement).toHaveBeenCalledWith(
+      "app-a",
+      element,
+    );
+  });
+
   it("reads the selected app and returns the accepted revision", async () => {
     const source = sourceFixture();
     const appBRoot = document.createElement("button");
@@ -75,6 +109,41 @@ describe("component DOM snapshots", () => {
 
     await expect(
       api.getComponentDOM("component", { expectedRevision: 7 }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "STALE_REVISION" },
+      meta: { revision: 8 },
+    });
+  });
+
+  it.each([
+    ["malformed selector", "[", "INVALID_OPTIONS"],
+    ["missing selector", "#missing", "COMPONENT_NOT_FOUND"],
+  ])("reports %s", async (_label, selector, code) => {
+    document.body.replaceChildren();
+    const source = sourceFixture();
+    const api = createProbeAPI(source);
+
+    await expect(api.getComponentFromDOM(selector)).resolves.toMatchObject({
+      ok: false,
+      error: { code },
+    });
+    expect(source.getComponentFromElement).not.toHaveBeenCalled();
+  });
+
+  it("rejects a revision change during reverse lookup", async () => {
+    let revision = 7;
+    const source = sourceFixture();
+    source.getRevision = () => revision;
+    source.getComponentFromElement = vi.fn(() => {
+      revision += 1;
+      return { componentId: "app-a:1", name: "UserCard" };
+    });
+    const element = document.createElement("div");
+    const api = createProbeAPI(source);
+
+    await expect(
+      api.getComponentFromDOM(element, { expectedRevision: 7 }),
     ).resolves.toMatchObject({
       ok: false,
       error: { code: "STALE_REVISION" },

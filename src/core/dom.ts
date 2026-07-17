@@ -1,4 +1,6 @@
 import type { DOMNodeLocator, DOMRectJSON } from "../public-types.js";
+import { DataSourceError } from "../data-source/types.js";
+import { ProbeOptionsError } from "./contract.js";
 
 const TEXT_PREVIEW_LENGTH = 120;
 const MAX_TEXT_NODES = 256;
@@ -6,6 +8,24 @@ const MAX_TEXT_CHARACTERS_SCANNED = 4_096;
 const MAX_STRUCTURAL_DEPTH = 12;
 const MAX_SERIALIZED_CLASSES = 100;
 const MAX_DOM_HINT_LENGTH = 1_000;
+
+export function resolveDOMElement(target: string | Element): Element {
+  if (typeof target !== "string") return target;
+  if (typeof document === "undefined")
+    throw new DataSourceError("NOT_READY", "DOM is not available");
+  let element: Element | null;
+  try {
+    element = document.querySelector(target);
+  } catch {
+    throw new ProbeOptionsError("target must be a valid CSS selector");
+  }
+  if (!element)
+    throw new DataSourceError(
+      "COMPONENT_NOT_FOUND",
+      `DOM target not found: ${target}`,
+    );
+  return element;
+}
 
 function rectJSON(element: Element): DOMRectJSON {
   const rect = element.getBoundingClientRect();

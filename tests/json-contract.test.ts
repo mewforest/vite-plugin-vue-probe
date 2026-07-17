@@ -81,6 +81,10 @@ function sourceFixture(
       state: { users: [1, 2] },
       getters: { count: 2 },
     }),
+    getComponentFromElement: () => ({
+      componentId: "component",
+      name: "ContractComponent",
+    }),
     getComponentRoots: () => [root],
     ...overrides,
   };
@@ -143,7 +147,8 @@ describe("public JSON wire contract", () => {
     expect(result).toMatchObject({
       ok: true,
       data: {
-        apiVersion: "0.3.0",
+        apiVersion: "0.4.0",
+        componentFromDOM: true,
         defaults: {
           maxDepth: 2,
           maxEntries: 25,
@@ -179,9 +184,12 @@ describe("public JSON wire contract", () => {
       await api.getPiniaStores({ appId: "app", includeKeys: true }),
       await api.getPiniaState("users", { appId: "app" }),
       await api.getComponentDOM("component", { appId: "app" }),
+      await api.getComponentFromDOM('[data-testid="contract-action"]', {
+        appId: "app",
+      }),
     ];
 
-    expect(results).toHaveLength(8);
+    expect(results).toHaveLength(9);
     expect(results.every((result) => result.ok)).toBe(true);
     results.forEach(expectJsonWireValue);
 
@@ -345,6 +353,9 @@ describe("public JSON wire contract", () => {
     const dom = createProbeAPI(
       errorSource("getComponentRoots", "COMPONENT_NOT_FOUND"),
     );
+    const fromDOM = createProbeAPI(
+      errorSource("getComponentFromElement", "COMPONENT_NOT_FOUND"),
+    );
     const detail = createProbeAPI(sourceFixture());
 
     const results = [
@@ -359,9 +370,13 @@ describe("public JSON wire contract", () => {
       await stores.getPiniaStores({ appId: "app" }),
       await pinia.getPiniaState("missing", { appId: "app" }),
       await dom.getComponentDOM("missing", { appId: "app" }),
+      await fromDOM.getComponentFromDOM(
+        '[data-testid="contract-action"]',
+        { appId: "app" },
+      ),
     ];
 
-    expect(results).toHaveLength(8);
+    expect(results).toHaveLength(9);
     expect(results.every((result) => !result.ok)).toBe(true);
     results.forEach(expectJsonWireValue);
   });

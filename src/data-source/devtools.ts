@@ -18,6 +18,7 @@ import type {
   InspectorPiniaPayload,
   InspectorStateEntry,
   ProbeDataSource,
+  RawComponentIdentity,
   RawComponentTreeResult,
 } from "./types.js";
 import { DataSourceError } from "./types.js";
@@ -44,6 +45,10 @@ export interface DevtoolsBridge {
     inspectorId: "components" | "pinia",
     nodeId: string,
   ): Promise<unknown>;
+  getComponentFromElement(
+    appId: string,
+    element: Element,
+  ): RawComponentIdentity | undefined;
   getComponentRoots(
     appId: string,
     componentId: string,
@@ -56,6 +61,41 @@ const MAX_INSPECTOR_TREE_DEPTH = 1_000;
 const MAX_COMPONENT_ROOT_VNODES = 10_000;
 const MAX_COMPONENT_ROOT_ELEMENTS = 200;
 const MAX_COMPONENT_ROOT_EDGES = 50_000;
+
+function componentInstanceName(instance: unknown): string {
+  try {
+    if (!instance || typeof instance !== "object")
+      return "Anonymous Component";
+    const record = instance as Record<string, unknown>;
+    const type = record.type;
+    if (type && (typeof type === "object" || typeof type === "function"))
+      for (const key of ["displayName", "name", "_componentTag", "__name"]) {
+        const candidate = Reflect.get(type, key);
+        if (typeof candidate === "string" && candidate.length > 0)
+          return candidate;
+      }
+    if (record.root === instance) return "Root";
+  } catch {
+    return "Anonymous Component";
+  }
+  return "Anonymous Component";
+}
+
+export function findComponentIdentity(
+  app: BridgeAppRecord,
+  element: Element,
+): RawComponentIdentity | undefined {
+  try {
+    const instance = Reflect.get(element, "__vueParentComponent");
+    if (!instance || !app.instanceMap) return undefined;
+    for (const [componentId, candidate] of app.instanceMap)
+      if (candidate === instance)
+        return { componentId, name: componentInstanceName(instance) };
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
 
 function inspectorError(message: string, cause?: unknown): DataSourceError {
   let suffix = "";
@@ -611,6 +651,20 @@ export class DevtoolsDataSource implements ProbeDataSource {
     });
   }
 
+  getComponentFromElement(
+    appId: string,
+    element: Element,
+  ): RawComponentIdentity {
+    this.assertApp(appId);
+    const identity = this.bridge.getComponentFromElement(appId, element);
+    if (!identity)
+      throw new DataSourceError(
+        "COMPONENT_NOT_FOUND",
+        "Vue component not found for DOM element",
+      );
+    return identity;
+  }
+
   getComponentRoots(appId: string, componentId: string): Element[] {
     this.assertApp(appId);
     if (typeof componentId !== "string" || componentId.trim().length === 0)
@@ -730,6 +784,12 @@ export function createKitBridge(): DevtoolsBridge {
       inspectorId: "components" | "pinia",
       nodeId: string,
     ) => devtools.api.getInspectorState({ inspectorId, nodeId }),
+    getComponentFromElement: (appId: string, element: Element) => {
+      const app = devtools.ctx.state.appRecords.find(
+        (record) => record.id === appId,
+      );
+      return app ? findComponentIdentity(app, element) : undefined;
+    },
     getComponentRoots: (appId: string, componentId: string) => {
       const app = devtools.ctx.state.appRecords.find(
         (record) => record.id === appId,

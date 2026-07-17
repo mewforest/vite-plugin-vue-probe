@@ -22,6 +22,7 @@ function piniaBridge(
         : [],
     ),
     getInspectorState: vi.fn(async (_inspectorId, nodeId) => stores[nodeId]),
+    getComponentFromElement: () => undefined,
     getComponentRoots: () => undefined,
     onRevision: () => [],
   };
