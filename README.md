@@ -311,10 +311,22 @@ console.log(selector && document.querySelector(selector));
 ### 6. Resolve a component from DOM
 
 ```js
+// By CSS selector (first match)
+await window.VUE_PROBE.getComponentFromDOM("#user-card").then((r) => console.log(r.data));
+
+// By Element
+await window.VUE_PROBE.getComponentFromDOM(document.querySelector("#user-card")).then((r) => console.log(r.data));
+```
+
+<details>
+<summary>Explained example</summary>
+
+Verbose version with explicit `ok` checks. Both forms resolve the nearest Vue component that owns the DOM node. CSS selectors use the first match returned by `document.querySelector`. The result is JSON-safe (`appId`, `componentId`, and `name`); the raw Vue instance is never exposed. Missing DOM nodes or Vue owners return the standard failure envelope.
+
+```js
 const $probe = window.VUE_PROBE;
 if (!$probe) throw new Error("VUE_PROBE is not installed");
 
-// Both forms resolve the nearest Vue component that owns the DOM node.
 const bySelector = await $probe.getComponentFromDOM("#user-card");
 const element = document.querySelector("#user-card");
 const byElement = element
@@ -330,7 +342,17 @@ console.log($probe.formatters.toMarkdown(state.data.state));
 console.log(byElement);
 ```
 
-CSS selectors use the first match returned by `document.querySelector`. The result is JSON-safe (`appId`, `componentId`, and `name`); the raw Vue instance is never exposed. Missing DOM nodes or Vue owners return the standard failure envelope.
+```text
+// → bySelector.data / byElement.data
+{ appId: "app", componentId: "app:3", name: "UserCard" }
+
+// → toMarkdown(state.data.state)
+- props:
+  - name: "Ada"
+  - role: "admin"
+```
+
+</details>
 
 ### 7. Read the next page of a large state value
 

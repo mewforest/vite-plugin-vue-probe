@@ -311,10 +311,22 @@ console.log(selector && document.querySelector(selector));
 ### 6. Получить компонент из DOM
 
 ```js
+// По CSS selector (первое совпадение)
+await window.VUE_PROBE.getComponentFromDOM("#user-card").then((r) => console.log(r.data));
+
+// По Element
+await window.VUE_PROBE.getComponentFromDOM(document.querySelector("#user-card")).then((r) => console.log(r.data));
+```
+
+<details>
+<summary>Explained example</summary>
+
+Verbose-версия с явными проверками `ok`. Обе формы возвращают ближайший Vue-компонент, владеющий DOM-узлом. CSS selector использует первое совпадение `document.querySelector`. Результат JSON-safe (`appId`, `componentId` и `name`); сырой Vue instance наружу не возвращается. Для отсутствующего DOM-узла или Vue-владельца метод возвращает стандартный failure envelope.
+
+```js
 const $probe = window.VUE_PROBE;
 if (!$probe) throw new Error("VUE_PROBE не установлен");
 
-// Обе формы возвращают ближайший Vue-компонент, владеющий DOM-узлом.
 const bySelector = await $probe.getComponentFromDOM("#user-card");
 const element = document.querySelector("#user-card");
 const byElement = element
@@ -330,7 +342,17 @@ console.log($probe.formatters.toMarkdown(state.data.state));
 console.log(byElement);
 ```
 
-CSS selector использует первое совпадение `document.querySelector`. Результат JSON-safe (`appId`, `componentId` и `name`); сырой Vue instance наружу не возвращается. Для отсутствующего DOM-узла или Vue-владельца метод возвращает стандартный failure envelope.
+```text
+// → bySelector.data / byElement.data
+{ appId: "app", componentId: "app:3", name: "UserCard" }
+
+// → toMarkdown(state.data.state)
+- props:
+  - name: "Ada"
+  - role: "admin"
+```
+
+</details>
 
 ### 7. Прочитать следующую страницу большого state-значения
 
