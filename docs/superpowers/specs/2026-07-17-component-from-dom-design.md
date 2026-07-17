@@ -52,7 +52,7 @@ The capability payload gains `componentFromDOM: true`.
 
 ## Validation and Errors
 
-- An empty selector, malformed selector, non-string/non-Element target, unknown option, or invalid option value returns `INVALID_ARGUMENT`.
+- An empty selector, malformed selector, non-string/non-Element target, unknown option, or invalid option value returns `INVALID_OPTIONS`, matching the existing Probe validation contract.
 - If `document` is unavailable while resolving a selector, the call returns `NOT_READY`.
 - If the selector matches no element, the element has no Vue owner, or its owner does not belong to the selected app, the call returns `COMPONENT_NOT_FOUND`.
 - An unknown explicit `appId` keeps the existing `APP_NOT_FOUND` behavior.
