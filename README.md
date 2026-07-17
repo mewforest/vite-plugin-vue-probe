@@ -258,7 +258,7 @@ setup.rows = [Array 240] (Truncated; returned 25; nextOffset 25)
 ### 5. DOM locators for a component by name (e.g. `UserCard`)
 
 ```js
-// Resolve UserCard by name, then log its selectors
+// Resolve UserCard by name, then query its first selector
 await window.VUE_PROBE
   .getComponentTree({ format: "flat" })
   .then((t) =>
@@ -269,7 +269,8 @@ await window.VUE_PROBE
   )
   .then((d) => {
     if (!d.ok) throw new Error(d.error.message);
-    console.log(d.data.roots.map((r) => r.selector));
+    const selector = d.data.roots[0]?.selector;
+    console.log(selector && document.querySelector(selector));
   });
 ```
 
@@ -294,12 +295,13 @@ const dom = await $probe.getComponentDOM(card.id, {
   expectedRevision: tree.meta.revision, // fail fast if tree went stale
 });
 if (!dom.ok) throw new Error(dom.error.message);
-console.log(dom.data.roots.map((r) => r.selector));
+const selector = dom.data.roots[0]?.selector;
+console.log(selector && document.querySelector(selector));
 ```
 
 ```text
 // → console output
-["article.user-card"]
+<article class="user-card">…</article>
 ```
 
 </details>

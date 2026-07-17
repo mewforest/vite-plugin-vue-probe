@@ -258,7 +258,7 @@ setup.rows = [Array 240] (Truncated; returned 25; nextOffset 25)
 ### 5. DOM-локаторы компонента по имени (например, `UserCard`)
 
 ```js
-// Найти UserCard по имени и вывести его selectors
+// Найти UserCard по имени и сразу querySelector по первому selector
 await window.VUE_PROBE
   .getComponentTree({ format: "flat" })
   .then((t) =>
@@ -269,7 +269,8 @@ await window.VUE_PROBE
   )
   .then((d) => {
     if (!d.ok) throw new Error(d.error.message);
-    console.log(d.data.roots.map((r) => r.selector));
+    const selector = d.data.roots[0]?.selector;
+    console.log(selector && document.querySelector(selector));
   });
 ```
 
@@ -294,12 +295,13 @@ const dom = await $probe.getComponentDOM(card.id, {
   expectedRevision: tree.meta.revision, // быстро упасть, если дерево устарело
 });
 if (!dom.ok) throw new Error(dom.error.message);
-console.log(dom.data.roots.map((r) => r.selector));
+const selector = dom.data.roots[0]?.selector;
+console.log(selector && document.querySelector(selector));
 ```
 
 ```text
 // → вывод в консоль
-["article.user-card"]
+<article class="user-card">…</article>
 ```
 
 </details>
