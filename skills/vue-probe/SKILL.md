@@ -11,7 +11,7 @@ description: >-
 
 Read-only runtime inspection for Vue 3 apps that use `vite-plugin-vue-probe`.
 API exists only during `vite serve` as `window.VUE_PROBE`.
-This workflow targets API `0.3.0`; verify `window.VUE_PROBE.version` first.
+This workflow targets API `0.4.0`; verify `window.VUE_PROBE.version` first.
 
 ## Preconditions
 
@@ -27,8 +27,13 @@ If `undefined`, the plugin is missing, disabled, or this is a production build. 
 ## Rules
 
 - **Read-only** — never invent mutation helpers; v1 cannot edit state or call actions.
-- Every method returns `ProbeResult<T>`: `{ ok: true, data, meta }` or `{ ok: false, error, meta }`.
-- Always check `ok` before using `data`.
+- Core methods return `ProbeResult<T>`: `{ ok: true, data, meta }` or
+  `{ ok: false, error, meta }`. Always check `ok` before using their `data`.
+- Prefer `VUE_PROBE.query` for routine reads. Fluent `run()` unwraps successful
+  `data`; `show()` formats, prints, and returns the printed value. Both throw
+  `ProbeQueryError` on failure.
+- Use core methods when the workflow needs failure envelopes, raw `meta`, or
+  manual `expectedRevision` coordination.
 - **Format before context:** after every `getComponentTree`, `getComponentState`,
   `getPiniaState`, or `getComponentDOM` call, you MUST run the successful data
   through `VUE_PROBE.formatters` before adding it to agent context. Use
@@ -65,68 +70,65 @@ flowchart LR
 ```js
 const $probe = window.VUE_PROBE;
 if (!$probe) throw new Error("VUE_PROBE missing");
+const $pq = $probe.query;
+
 const caps = await $probe.getCapabilities();
 if (!caps.ok) throw new Error(caps.error.message);
-const apps = await $probe.listApps();
-if (!apps.ok) throw new Error(apps.error.message);
+const apps = await $pq.apps().run();
 
-const tree = await $probe.getComponentTree({
-  format: "flat",
+// Query construction is lazy; show() executes and returns this string.
+const treeMarkdown = await $pq.app().tree({
   maxDepth: 3,
   filter: "User", // optional: UserList / UserCard
-});
-if (!tree.ok) throw new Error(tree.error.message);
-const treeMarkdown = $probe.formatters.toMarkdown(tree.data);
+}).show("markdown");
 
 // State of the list (rows may be truncated)
-const list = tree.data.nodes.find((n) => n.name === "UserList");
-if (!list) throw new Error("UserList not in tree");
-const state = await $probe.getComponentState(list.id, {
-  appId: tree.data.appId,
-});
-if (!state.ok) throw new Error(state.error.message);
-const stateMarkdown = $probe.formatters.toMarkdown(state.data.state);
-const statePaths = $probe.formatters.stateToPaths(state.data.state);
+const listQuery = $pq.app().component("UserList");
+const stateMarkdown = await listQuery.get().show("markdown");
+const statePaths = await listQuery.get().show("paths");
 
 // DOM of one card — not App
-const card = tree.data.nodes.find((n) => n.name === "UserCard");
-if (!card) throw new Error("UserCard not in tree");
-const dom = await $probe.getComponentDOM(card.id, {
-  appId: tree.data.appId,
-  expectedRevision: tree.meta.revision,
-});
-if (!dom.ok) throw new Error(dom.error.message);
-const domTable = $probe.formatters.domToTable(dom.data.roots);
+const domRows = await $pq
+  .app()
+  .component("UserCard")
+  .dom()
+  .show("table");
 
-// Page UserList.setup.rows when truncated
-const page = await $probe.getDetailedState(
-  { kind: "component", componentId: list.id, appId: tree.data.appId },
-  ["setup", "rows"],
-  { offset: 0, limit: 50, expectedRevision: tree.meta.revision },
-);
-if (!page.ok) throw new Error(page.error.message);
-if (page.data.page?.nextOffset != null) {
-  const next = await $probe.getDetailedState(page.data.target, page.data.path, {
-    offset: page.data.page.nextOffset,
-    limit: page.data.page.limit,
-    expectedRevision: page.meta.revision,
-  });
-  if (!next.ok) throw new Error(next.error.message);
-}
+// Page UserList.setup.rows explicitly; there is no unbounded all() helper.
+const page = await listQuery
+  .get("setup.rows")
+  .page({ offset: 0, limit: 50 })
+  .run();
+const pageJson =
+  page.page?.nextOffset == null
+    ? null
+    : await listQuery
+        .get("setup.rows")
+        .page({ offset: page.page.nextOffset, limit: page.page.limit })
+        .show("json");
 
-const stores = await $probe.getPiniaStores({ appId: tree.data.appId }); // IDs only
-if (!stores.ok) throw new Error(stores.error.message);
-const storesWithKeys = await $probe.getPiniaStores({
-  appId: tree.data.appId,
+const stores = await $pq.app().pinia().run(); // IDs only
+const storesWithKeys = await $pq.app().pinia({
   includeKeys: true,
-});
-if (!storesWithKeys.ok) throw new Error(storesWithKeys.error.message);
-const pinia = await $probe.getPiniaState("users", { appId: tree.data.appId });
-if (!pinia.ok) throw new Error(pinia.error.message);
-const piniaMarkdown = $probe.formatters.toMarkdown(pinia.data.state);
+}).run();
+const piniaMarkdown = await $pq
+  .app()
+  .pinia("users")
+  .get()
+  .show("markdown");
 
-// Return compact strings to the agent/tool boundary, not raw payloads.
-({ treeMarkdown, stateMarkdown, statePaths, domTable, piniaMarkdown });
+// Return compact strings/rows to the agent/tool boundary, not raw payloads.
+({
+  apps,
+  treeMarkdown,
+  stateMarkdown,
+  statePaths,
+  domRows,
+  pageJson,
+  stores,
+  storesWithKeys,
+  piniaMarkdown,
+});
 ```
 
 Hard limits exposed by capabilities for serialized state data include depth

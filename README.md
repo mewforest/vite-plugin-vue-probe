@@ -25,6 +25,7 @@ The current public contract is **API 0.4.0**.
 | DOM locators    | JSON selectors / rects for a component’s root elements                    |
 | DOM lookup      | Resolve a selector or Element to its nearest owning Vue component          |
 | Safe envelope   | Every call returns `ProbeResult<T>` — success or structured error         |
+| Fluent queries  | Lazy immutable chains with automatic app/component/revision resolution     |
 
 ---
 
@@ -91,7 +92,46 @@ flowchart LR
 
 </details>
 
-Pasteable `.then()` chains below are still single expressions. Variants with explicit `ok` checks are under spoilers.
+### Fluent query API
+
+The existing envelope API remains available, while `window.VUE_PROBE.query`
+adds lazy Go-Rod-style chains for routine console, test, and agent reads:
+
+```js
+const { query: $pq } = window.VUE_PROBE;
+
+await $pq.apps().show();
+await $pq.app().tree().show("markdown");
+await $pq.app().component("UserList").get("props.item").show("markdown");
+await $pq.app().component("UserCard").dom().show("table");
+await $pq.app().fromDOM("#user-card").get("props.item").show();
+await $pq
+  .app()
+  .component("UserList")
+  .get("setup.rows")
+  .page({ offset: 50, limit: 50 })
+  .show("json");
+await $pq.app().pinia("users").get("list").show("markdown");
+```
+
+Chains are immutable and do nothing until `run()` or `show()`:
+
+- `run()` returns the complete successful `data` payload without logging;
+- `show(format?)` formats, prints, and returns the printed value;
+- failures throw `ProbeQueryError` with `code`, `meta`, `step`, and a safe
+  query description;
+- `app()` selects the active app, then falls back to the first app;
+- `component(name)` selects the first exact breadth-first match; use
+  `.nth(index)` for later matches or `components(name)` for all matches;
+- string paths split on dots and convert canonical integer segments, while an
+  array preserves literal keys such as `["state", "key.with.dot"]`;
+- `tree()` defaults to `{ format: "flat", maxDepth: 5 }`.
+
+Query objects are intentionally not promises: `await $pq.app().tree()` does
+not execute anything. Use a terminal method. Choose the original methods below
+when you need failure envelopes or manual revision coordination.
+
+Pasteable `.then()` chains below use the explicit envelope API. Variants with explicit `ok` checks are under spoilers.
 
 ### 1. Check that the API is available
 

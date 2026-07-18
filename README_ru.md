@@ -25,6 +25,7 @@ PoC опирается на Vue DevTools v8 (`@vue/devtools-kit`) и даёт д
 | DOM-локаторы         | JSON selectors / rects для корневых элементов компонента               |
 | DOM lookup           | Поиск ближайшего Vue-компонента-владельца по selector или Element      |
 | Безопасный ответ     | Каждый вызов — `ProbeResult<T>`: успех или структурированная ошибка    |
+| Fluent queries       | Ленивые immutable-цепочки с автоматическим выбором app/component/revision |
 
 ---
 
@@ -91,7 +92,47 @@ flowchart LR
 
 </details>
 
-Цепочки `.then()` ниже — единые выражения: копируйте целиком в консоль. Варианты с явными проверками `ok` — под спойлером.
+### Fluent query API
+
+Исходный envelope API остаётся доступен, а `window.VUE_PROBE.query` добавляет
+ленивые цепочки в стиле Go-Rod для обычных чтений из консоли, тестов и агентов:
+
+```js
+const { query: $pq } = window.VUE_PROBE;
+
+await $pq.apps().show();
+await $pq.app().tree().show("markdown");
+await $pq.app().component("UserList").get("props.item").show("markdown");
+await $pq.app().component("UserCard").dom().show("table");
+await $pq.app().fromDOM("#user-card").get("props.item").show();
+await $pq
+  .app()
+  .component("UserList")
+  .get("setup.rows")
+  .page({ offset: 50, limit: 50 })
+  .show("json");
+await $pq.app().pinia("users").get("list").show("markdown");
+```
+
+Цепочки immutable и ничего не выполняют до `run()` или `show()`:
+
+- `run()` возвращает полный успешный payload `data` и не пишет в консоль;
+- `show(format?)` форматирует, печатает и возвращает напечатанное значение;
+- ошибки бросаются как `ProbeQueryError` с `code`, `meta`, `step` и безопасным
+  описанием query;
+- `app()` выбирает active app, а при его отсутствии — первый app;
+- `component(name)` выбирает первое точное breadth-first совпадение;
+  `.nth(index)` выбирает следующее, `components(name)` возвращает все;
+- строковый path разбивается по точкам и преобразует канонические integer
+  сегменты, а массив сохраняет буквальные ключи вроде
+  `["state", "key.with.dot"]`;
+- `tree()` по умолчанию использует `{ format: "flat", maxDepth: 5 }`.
+
+Query-объекты намеренно не являются Promise: `await $pq.app().tree()` ничего
+не выполнит. Нужен терминальный метод. Исходные методы ниже подходят, когда
+нужны failure envelopes или ручная координация revision.
+
+Цепочки `.then()` ниже используют явный envelope API. Варианты с проверками `ok` — под спойлером.
 
 ### 1. Проверить, что API доступен
 
