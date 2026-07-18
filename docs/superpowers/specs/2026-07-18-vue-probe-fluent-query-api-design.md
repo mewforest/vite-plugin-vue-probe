@@ -2,7 +2,7 @@
 
 ## Status
 
-Design approved on 2026-07-18; written specification pending final review.
+Approved for implementation on 2026-07-18.
 
 ## Goal
 
