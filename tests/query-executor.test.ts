@@ -4,7 +4,13 @@ import type { ProbeQueryOperations } from "../src/query/executor";
 import type { AppPlan, QueryPlan } from "../src/query/plan";
 import type {
   AppSummary,
+  ComponentDOMResult,
+  ComponentFromDOMResult,
+  ComponentStateResult,
   ComponentTreeResult,
+  DetailedStateResult,
+  PiniaStateResult,
+  PiniaStoreSummary,
   ProbeResult,
   ResponseMeta,
 } from "../src/public-types";
@@ -66,6 +72,53 @@ const tree: ComponentTreeResult = {
   ],
 };
 
+const componentState: ComponentStateResult = {
+  appId: "active",
+  componentId: "shallow-1",
+  name: "Card",
+  state: { props: { item: "Ada" } },
+};
+
+const detailedState: DetailedStateResult = {
+  target: {
+    kind: "component",
+    appId: "active",
+    componentId: "shallow-1",
+  },
+  path: ["setup", "rows"],
+  value: [{ id: 51 }],
+  page: {
+    offset: 50,
+    limit: 50,
+    returned: 1,
+    total: 51,
+    nextOffset: null,
+  },
+};
+
+const stores: PiniaStoreSummary[] = [
+  { appId: "active", id: "users" },
+  { appId: "active", id: "session" },
+];
+
+const piniaState: PiniaStateResult = {
+  appId: "active",
+  storeId: "users",
+  state: { list: ["Ada"] },
+};
+
+const componentDOM: ComponentDOMResult = {
+  appId: "active",
+  componentId: "shallow-1",
+  roots: [],
+};
+
+const fromDOM: ComponentFromDOMResult = {
+  appId: "active",
+  componentId: "shallow-1",
+  name: "Card",
+};
+
 function operationsFixture(): ProbeQueryOperations {
   return {
     formatters: {
@@ -77,12 +130,12 @@ function operationsFixture(): ProbeQueryOperations {
     },
     listApps: vi.fn(async () => success(apps)),
     getComponentTree: vi.fn(async () => success(tree)),
-    getComponentState: vi.fn(),
-    getDetailedState: vi.fn(),
-    getPiniaStores: vi.fn(),
-    getPiniaState: vi.fn(),
-    getComponentDOM: vi.fn(),
-    getComponentFromDOM: vi.fn(),
+    getComponentState: vi.fn(async () => success(componentState)),
+    getDetailedState: vi.fn(async () => success(detailedState)),
+    getPiniaStores: vi.fn(async () => success(stores)),
+    getPiniaState: vi.fn(async () => success(piniaState)),
+    getComponentDOM: vi.fn(async () => success(componentDOM)),
+    getComponentFromDOM: vi.fn(async () => success(fromDOM, 9)),
   };
 }
 
@@ -206,6 +259,177 @@ describe("query executor app and component selection", () => {
     ).rejects.toMatchObject({
       code: "COMPONENT_NOT_FOUND",
       step: "find-component",
+    });
+  });
+});
+
+describe("query executor state, Pinia, and DOM", () => {
+  it("forwards component-tree revision to full and detailed state", async () => {
+    const operations = operationsFixture();
+    const component: QueryPlan = {
+      kind: "component",
+      app: appPlan(),
+      name: "Card",
+      index: 1,
+    };
+
+    await createQueryExecutor(operations).execute({
+      kind: "component-state",
+      component,
+      options: { includeMetadata: true },
+    });
+    await createQueryExecutor(operations).execute({
+      kind: "detailed-state",
+      target: component,
+      path: ["setup", "rows"],
+      options: { maxDepth: 4 },
+      page: { offset: 50, limit: 50 },
+    });
+
+    expect(operations.getComponentState).toHaveBeenCalledWith("shallow-1", {
+      includeMetadata: true,
+      appId: "active",
+      expectedRevision: 7,
+    });
+    expect(operations.getDetailedState).toHaveBeenCalledWith(
+      {
+        kind: "component",
+        appId: "active",
+        componentId: "shallow-1",
+      },
+      ["setup", "rows"],
+      {
+        maxDepth: 4,
+        expectedRevision: 7,
+        offset: 50,
+        limit: 50,
+      },
+    );
+  });
+
+  it("lists Pinia stores, selects exact summaries, and reads state directly", async () => {
+    const operations = operationsFixture();
+    const executor = createQueryExecutor(operations);
+    const storePlan: QueryPlan = {
+      kind: "pinia-store",
+      app: appPlan(),
+      storeId: "users",
+    };
+
+    await expect(
+      executor.execute({ kind: "pinia-stores", app: appPlan(), options: {} }),
+    ).resolves.toEqual(stores);
+    await expect(executor.execute(storePlan)).resolves.toEqual(stores[0]);
+    vi.mocked(operations.getPiniaStores).mockClear();
+    await executor.execute({
+      kind: "pinia-state",
+      store: storePlan,
+      options: { maxDepth: 3 },
+    });
+
+    expect(operations.getPiniaState).toHaveBeenCalledWith("users", {
+      maxDepth: 3,
+      appId: "active",
+    });
+    expect(operations.getPiniaStores).not.toHaveBeenCalled();
+  });
+
+  it("reads detailed Pinia state without a preliminary store list", async () => {
+    const operations = operationsFixture();
+    const store: QueryPlan = {
+      kind: "pinia-store",
+      app: appPlan(),
+      storeId: "users",
+    };
+
+    await createQueryExecutor(operations).execute({
+      kind: "detailed-state",
+      target: store,
+      path: ["list", 0],
+      options: {},
+    });
+
+    expect(operations.getDetailedState).toHaveBeenCalledWith(
+      { kind: "pinia", appId: "active", storeId: "users" },
+      ["list", 0],
+      {},
+    );
+    expect(operations.getPiniaStores).not.toHaveBeenCalled();
+  });
+
+  it("forwards component revision to DOM reads", async () => {
+    const operations = operationsFixture();
+    await createQueryExecutor(operations).execute({
+      kind: "component-dom",
+      component: {
+        kind: "component",
+        app: appPlan(),
+        name: "Card",
+        index: 1,
+      },
+      options: {},
+    });
+
+    expect(operations.getComponentDOM).toHaveBeenCalledWith("shallow-1", {
+      appId: "active",
+      expectedRevision: 7,
+    });
+  });
+
+  it("carries DOM-resolved identity and revision into detailed state", async () => {
+    const operations = operationsFixture();
+    const target: QueryPlan = {
+      kind: "component-from-dom",
+      app: appPlan(),
+      target: "#card",
+      options: {},
+    };
+
+    await expect(createQueryExecutor(operations).execute(target)).resolves.toEqual(
+      fromDOM,
+    );
+    await createQueryExecutor(operations).execute({
+      kind: "detailed-state",
+      target,
+      path: ["props", "item"],
+      options: {},
+    });
+
+    expect(operations.getComponentFromDOM).toHaveBeenCalledWith("#card", {
+      appId: "active",
+    });
+    expect(operations.getDetailedState).toHaveBeenCalledWith(
+      {
+        kind: "component",
+        appId: "active",
+        componentId: "shallow-1",
+      },
+      ["props", "item"],
+      { expectedRevision: 9 },
+    );
+  });
+
+  it("preserves downstream stale-revision failures", async () => {
+    const operations = operationsFixture();
+    vi.mocked(operations.getComponentState).mockResolvedValue(
+      failure("STALE_REVISION", 8),
+    );
+
+    await expect(
+      createQueryExecutor(operations).execute({
+        kind: "component-state",
+        component: {
+          kind: "component",
+          app: appPlan(),
+          name: "Card",
+          index: 1,
+        },
+        options: {},
+      }),
+    ).rejects.toMatchObject({
+      code: "STALE_REVISION",
+      step: "read-component-state",
+      meta: { revision: 8 },
     });
   });
 });
