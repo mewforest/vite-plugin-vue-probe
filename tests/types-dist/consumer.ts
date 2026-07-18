@@ -1,4 +1,5 @@
 import vueProbe, {
+  ProbeQueryError,
   type ComponentFromDOMOptions,
   type ComponentFromDOMResult,
   type ComponentDOMOptions,
@@ -6,6 +7,7 @@ import vueProbe, {
   type PiniaStoreSummary,
   type ProbeAPI,
   type ProbeError,
+  type ProbeQueryRoot,
   type DetailedStateResult,
 } from "vite-plugin-vue-probe";
 import {
@@ -60,6 +62,24 @@ const identity: ComponentFromDOMResult = {
 };
 void identity;
 void api.getPiniaStores({ appId: "app-1", includeKeys: true });
+const queryRoot: ProbeQueryRoot = api.query;
+const queryTree: Promise<string> = queryRoot.app().tree().show("markdown");
+const queryPage: Promise<DetailedStateResult> = queryRoot
+  .app()
+  .component("UserList")
+  .get("setup.rows")
+  .page({ offset: 0, limit: 50 })
+  .run();
+const queryError: ProbeQueryError = new ProbeQueryError(
+  "missing",
+  "COMPONENT_NOT_FOUND",
+  { requestId: "query-1", revision: 0, observedAt: "2026-07-18T00:00:00.000Z" },
+  "find-component",
+  "app(default).component(Missing)",
+);
+void queryTree;
+void queryPage;
+void queryError;
 const resolvedAppId: string = detailResult.target.appId;
 void resolvedAppId;
 
@@ -105,6 +125,23 @@ void api.getComponentFromDOM({}, {});
 
 // @ts-expect-error Pinia key enrichment is controlled by a boolean.
 void api.getPiniaStores({ includeKeys: "yes" });
+
+// @ts-expect-error apps do not support Mermaid.
+void api.query.apps().show("mermaid");
+
+const fullStateQuery = api.query
+  .app()
+  .component("UserList")
+  .get();
+// @ts-expect-error full state reads are not pageable.
+void fullStateQuery.page({ offset: 0, limit: 50 });
+
+// @ts-expect-error query tree options cannot override the selected app.
+void api.query.app().tree({ appId: "other" });
+
+// @ts-expect-error query objects intentionally are not PromiseLike.
+const thenableQuery: PromiseLike<unknown> = api.query.apps();
+void thenableQuery;
 
 const errorWithDetails: ProbeError = {
   code: "INTERNAL_ERROR",

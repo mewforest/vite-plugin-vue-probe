@@ -25,6 +25,7 @@ import type {
 import { DataSourceError } from "../data-source/types.js";
 import { createDOMLocators, resolveDOMElement } from "./dom.js";
 import { probeFormatters } from "./formatters.js";
+import { createProbeQueryAPI } from "../query/index.js";
 import {
   ProbePathError,
   normalizeDetailedOptions,
@@ -627,7 +628,7 @@ export function createProbeAPI(source: ProbeDataSource): ProbeAPI {
     return operation(value);
   };
 
-  return {
+  const core: Omit<ProbeAPI, "query"> = {
     version: PROBE_API_VERSION,
     formatters: probeFormatters,
     getCapabilities: () =>
@@ -804,5 +805,9 @@ export function createProbeAPI(source: ProbeDataSource): ProbeAPI {
             },
           ),
       ),
+  };
+  return {
+    ...core,
+    query: createProbeQueryAPI(core),
   };
 }

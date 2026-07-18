@@ -35,6 +35,9 @@ describe("installProbeAPI", () => {
     expect(first).toBe(second);
     expect(first).toBe(window.VUE_PROBE);
     expect(Object.isFrozen(first)).toBe(true);
+    expect(first!.query).toBeDefined();
+    expect(Object.isFrozen(first!.query)).toBe(true);
+    expect("then" in first!.query.app().tree()).toBe(false);
     expect(Object.isFrozen(first!.formatters)).toBe(true);
     expect(first!.formatters.stateToPaths({ setup: { count: 1 } })).toBe(
       "setup.count = 1",

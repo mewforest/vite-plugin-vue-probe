@@ -61,3 +61,6 @@ export function uninstallProbeAPI(api?: ProbeAPI): boolean {
 }
 
 export type * from "./public-types.js";
+export type * from "./query/types.js";
+export type { QueryPath } from "./query/path.js";
+export { ProbeQueryError } from "./query/error.js";

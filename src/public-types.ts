@@ -1,3 +1,5 @@
+import type { ProbeQueryRoot } from "./query/types.js";
+
 export type JsonPrimitive = string | number | boolean | null;
 export type StatePath = Array<string | number>;
 
@@ -350,6 +352,7 @@ export interface ProbeFormatters {
 export interface ProbeAPI {
   readonly version: string;
   readonly formatters: Readonly<ProbeFormatters>;
+  readonly query: ProbeQueryRoot;
   getCapabilities(): Promise<ProbeResult<ProbeCapabilities>>;
   listApps(): Promise<ProbeResult<AppSummary[]>>;
   getComponentTree(
