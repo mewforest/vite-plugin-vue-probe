@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createProbeQueryAPI } from "../src/query";
 import { createQueryExecutor } from "../src/query/executor";
 import type { ProbeQueryOperations } from "../src/query/executor";
 import type { AppPlan, QueryPlan } from "../src/query/plan";
@@ -432,4 +433,50 @@ describe("query executor state, Pinia, and DOM", () => {
       meta: { revision: 8 },
     });
   });
+
+  it.each([
+    [
+      "full Pinia state",
+      (operations: ProbeQueryOperations) =>
+        createProbeQueryAPI(operations)
+          .app()
+          .pinia("users")
+          .get({ expectedRevision: 99 } as never)
+          .run(),
+      "getPiniaState" as const,
+    ],
+    [
+      "detailed Pinia state",
+      (operations: ProbeQueryOperations) =>
+        createProbeQueryAPI(operations)
+          .app()
+          .pinia("users")
+          .get("list", {
+            offset: 10,
+            limit: 10,
+            expectedRevision: 99,
+          } as never)
+          .run(),
+      "getDetailedState" as const,
+    ],
+    [
+      "tree app selection",
+      (operations: ProbeQueryOperations) =>
+        createProbeQueryAPI(operations)
+          .app()
+          .tree({ appId: "other" } as never)
+          .run(),
+      "getComponentTree" as const,
+    ],
+  ])(
+    "rejects context-owned options in %s before calling the facade",
+    async (_name, invoke, operationName) => {
+      const operations = operationsFixture();
+      await expect(invoke(operations)).rejects.toMatchObject({
+        code: "INVALID_OPTIONS",
+        step: "validate-options",
+      });
+      expect(operations[operationName]).not.toHaveBeenCalled();
+    },
+  );
 });

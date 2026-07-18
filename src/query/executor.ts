@@ -39,6 +39,24 @@ interface Executed<T> {
   readonly context: ExecutionContext;
 }
 
+function rejectContextOptions(
+  plan: QueryPlan,
+  options: object | undefined,
+  forbidden: readonly string[],
+): void {
+  if (!options) return;
+  for (const key of forbidden) {
+    if (Object.prototype.hasOwnProperty.call(options, key)) {
+      throw queryError(
+        plan,
+        "INVALID_OPTIONS",
+        `Query option is owned by the fluent context: ${key}`,
+        "validate-options",
+      );
+    }
+  }
+}
+
 function breadthFirst(nodes: ComponentTreeNode[]): ComponentTreeNode[] {
   return nodes
     .map((node, sourceIndex) => ({ node, sourceIndex }))
@@ -87,6 +105,7 @@ export function createQueryExecutor(operations: ProbeQueryOperations): {
   const executeTree = async (
     plan: TreePlan,
   ): Promise<Executed<ComponentTreeResult>> => {
+    rejectContextOptions(plan, plan.options, ["appId"]);
     const app = await resolveApp(plan.app);
     const result = unwrapProbeResult(
       await operations.getComponentTree({
@@ -148,6 +167,7 @@ export function createQueryExecutor(operations: ProbeQueryOperations): {
   const resolveFromDOM = async (
     plan: ComponentFromDOMPlan,
   ): Promise<Executed<ComponentFromDOMResult>> => {
+    rejectContextOptions(plan, plan.options, ["appId", "expectedRevision"]);
     const app = await resolveApp(plan.app);
     const result = unwrapProbeResult(
       await operations.getComponentFromDOM(plan.target, {
@@ -206,6 +226,7 @@ export function createQueryExecutor(operations: ProbeQueryOperations): {
       case "component":
         return resolveComponent(plan);
       case "component-state": {
+        rejectContextOptions(plan, plan.options, ["appId", "expectedRevision"]);
         const target = await resolveComponentTarget(plan.component);
         const result = unwrapProbeResult(
           await operations.getComponentState(target.componentId, {
@@ -224,6 +245,12 @@ export function createQueryExecutor(operations: ProbeQueryOperations): {
         };
       }
       case "detailed-state": {
+        rejectContextOptions(plan, plan.options, [
+          "appId",
+          "expectedRevision",
+          "offset",
+          "limit",
+        ]);
         let target:
           | {
               readonly kind: "component";
@@ -267,6 +294,7 @@ export function createQueryExecutor(operations: ProbeQueryOperations): {
         };
       }
       case "pinia-stores": {
+        rejectContextOptions(plan, plan.options, ["appId"]);
         const app = await resolveApp(plan.app);
         const result = unwrapProbeResult(
           await operations.getPiniaStores({
@@ -303,6 +331,7 @@ export function createQueryExecutor(operations: ProbeQueryOperations): {
         };
       }
       case "pinia-state": {
+        rejectContextOptions(plan, plan.options, ["appId", "expectedRevision"]);
         const app = await resolvePiniaApp(plan.store);
         const result = unwrapProbeResult(
           await operations.getPiniaState(plan.store.storeId, {
@@ -318,6 +347,7 @@ export function createQueryExecutor(operations: ProbeQueryOperations): {
         };
       }
       case "component-dom": {
+        rejectContextOptions(plan, plan.options, ["appId", "expectedRevision"]);
         const component = await resolveComponent(plan.component);
         const appId = component.context.appId!;
         const result = unwrapProbeResult(

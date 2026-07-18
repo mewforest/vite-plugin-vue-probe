@@ -6,7 +6,7 @@ import type {
 import type { QueryPlan } from "./plan.js";
 
 const LOCAL_META: ResponseMeta = Object.freeze({
-  requestId: "probe-query-0",
+  requestId: "probe-0",
   revision: 0,
   observedAt: "1970-01-01T00:00:00.000Z",
 });

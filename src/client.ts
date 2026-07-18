@@ -1,4 +1,4 @@
-import type { ProbeAPI } from "./public-types.js";
+import type { ProbeBrowserAPI } from "./public-types.js";
 import type { ProbeDataSource } from "./data-source/types.js";
 import { DevtoolsDataSource } from "./data-source/devtools.js";
 import { createProbeAPI, PROBE_API_VERSION } from "./core/facade.js";
@@ -7,11 +7,11 @@ interface OwnedInstallation {
   readonly source: ProbeDataSource;
 }
 
-const installations = new WeakMap<ProbeAPI, OwnedInstallation>();
+const installations = new WeakMap<ProbeBrowserAPI, OwnedInstallation>();
 
 export function installProbeAPI(
   source: ProbeDataSource = new DevtoolsDataSource(),
-): ProbeAPI | undefined {
+): ProbeBrowserAPI | undefined {
   if (typeof window === "undefined") return undefined;
   if (window.VUE_PROBE) return window.VUE_PROBE;
   let initializationAttempted = false;
@@ -42,7 +42,7 @@ export function installProbeAPI(
   }
 }
 
-export function uninstallProbeAPI(api?: ProbeAPI): boolean {
+export function uninstallProbeAPI(api?: ProbeBrowserAPI): boolean {
   if (typeof window === "undefined") return false;
   const candidate = api ?? window.VUE_PROBE;
   if (!candidate) return false;

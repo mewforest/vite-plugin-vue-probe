@@ -352,7 +352,6 @@ export interface ProbeFormatters {
 export interface ProbeAPI {
   readonly version: string;
   readonly formatters: Readonly<ProbeFormatters>;
-  readonly query: ProbeQueryRoot;
   getCapabilities(): Promise<ProbeResult<ProbeCapabilities>>;
   listApps(): Promise<ProbeResult<AppSummary[]>>;
   getComponentTree(
@@ -384,8 +383,13 @@ export interface ProbeAPI {
   ): Promise<ProbeResult<ComponentFromDOMResult>>;
 }
 
+/** The API installed in the browser, including the additive fluent layer. */
+export interface ProbeBrowserAPI extends ProbeAPI {
+  readonly query: ProbeQueryRoot;
+}
+
 declare global {
   interface Window {
-    VUE_PROBE?: ProbeAPI;
+    VUE_PROBE?: ProbeBrowserAPI;
   }
 }

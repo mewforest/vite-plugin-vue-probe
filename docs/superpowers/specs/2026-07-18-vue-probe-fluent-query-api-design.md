@@ -85,14 +85,19 @@ performs a fresh read.
 same plan, formats the unwrapped data, prints it, and returns the value passed
 to the console.
 
-The final `ProbeAPI` gains one readonly member:
+The browser-facing API extends the unchanged core `ProbeAPI` producer contract
+with one readonly member:
 
 ```ts
-export interface ProbeAPI {
-  // Existing members remain unchanged.
+export interface ProbeBrowserAPI extends ProbeAPI {
   readonly query: ProbeQueryRoot;
 }
 ```
+
+Keeping `ProbeAPI` as the original envelope-only surface preserves source
+compatibility for downstream adapters and mocks. `window.VUE_PROBE` and
+`installProbeAPI()` use `ProbeBrowserAPI`, so browser consumers still get
+non-optional fluent-query autocomplete.
 
 The facade creates its existing API methods first and passes that stable API
 surface to the query factory. The query layer must not create a second facade

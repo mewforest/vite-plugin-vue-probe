@@ -1,5 +1,6 @@
 import type {
   ProbeAPI,
+  ProbeBrowserAPI,
   ProbeCapabilities,
   ProbeError,
   ProbeResult,
@@ -459,7 +460,7 @@ function validationError(error: unknown): ProbeError {
   };
 }
 
-export function createProbeAPI(source: ProbeDataSource): ProbeAPI {
+export function createProbeAPI(source: ProbeDataSource): ProbeBrowserAPI {
   let requestSequence = 0;
   const meta = (revision: number): ResponseMeta => {
     let observedAt = "1970-01-01T00:00:00.000Z";
@@ -628,7 +629,7 @@ export function createProbeAPI(source: ProbeDataSource): ProbeAPI {
     return operation(value);
   };
 
-  const core: Omit<ProbeAPI, "query"> = {
+  const core: ProbeAPI = {
     version: PROBE_API_VERSION,
     formatters: probeFormatters,
     getCapabilities: () =>

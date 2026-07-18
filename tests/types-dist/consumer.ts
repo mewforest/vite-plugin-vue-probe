@@ -6,6 +6,7 @@ import vueProbe, {
   type DOMNodeLocator,
   type PiniaStoreSummary,
   type ProbeAPI,
+  type ProbeBrowserAPI,
   type ProbeError,
   type ProbeQueryRoot,
   type DetailedStateResult,
@@ -18,7 +19,11 @@ import {
 const plugin = vueProbe({ enabled: true });
 void plugin;
 
-declare const api: ProbeAPI;
+declare const api: ProbeBrowserAPI;
+type LegacyProbeAPIShape = Omit<ProbeBrowserAPI, "query">;
+declare const legacyProbeAPI: LegacyProbeAPIShape;
+const compatibleLegacyProbeAPI: ProbeAPI = legacyProbeAPI;
+void compatibleLegacyProbeAPI;
 declare const options: ComponentDOMOptions;
 declare const detailResult: DetailedStateResult;
 declare const element: Element;
